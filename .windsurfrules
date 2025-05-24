@@ -1,0 +1,31 @@
+# Windsurf Rules – Multi-Agent World Chat
+
+## 1. Workflow
+• **Doc-first:** No feature code may be merged until its related spec section is approved.
+• **LangGraph-first:** Until Phase P5 is done, UI branches may depend only on released LangGraph package.
+• **Branching:** `main` → stable; feature branches `feat/<scope>`; docs branches `docs/<topic>`.
+• **Commits:** Conventional Commits format.
+• **PR requirements:** Green CI, linked milestone (P1…P9), reviewer approval.
+
+## 2. Definition of Done per Phase
+| Phase | DoD |
+|-------|-----|
+| P1 LangGraph PoC | Router routes; two stubs reply; 100% RouterNode tests |
+| P2 Memory Core | Memory CRUD, decay, reflection tests pass |
+| P3 Cost Tracker | Cost recorded; budget alert unit test |
+| P4 Persistence & Sync | Core Data save/fetch; CloudKit sync in sim |
+| P5 LangGraph MVP | End-to-end CLI chat green; package version 0.1.0 tag |
+| P6 iOS UI PoC | Send/receive text via LangGraph on device |
+| P7 Image & Vision | Vision tags appear in messages |
+| P8 Background & Push | Push notification after idle |
+| P9 MVP Polish | No crash in 48h beta; accessibility AA |
+
+## 3. Coding Standards
+• Swift 5.10, SwiftLint strict. Etc.
+
+## 4. AI Model Usage
+• Default Sonnet 3.7 for coding; escalate rule.
+
+## 5–7 … (unchanged)
+
+(Last updated: 2025-05-21)
