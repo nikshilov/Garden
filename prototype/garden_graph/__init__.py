@@ -1,0 +1,1 @@
+"""Garden Graph package root."""

@@ -21,7 +21,7 @@ Rules:
 1. Analyze the user's message and decide which character(s) it's directed at.
 2. Choose at most 2 characters to respond (usually just 1).
 3. If the user explicitly addresses a character with @name, always include that character.
-4. For ambiguous messages, choose the most appropriate character.
+4. If the user uses a plural/group address (e.g. "guys", "друзья", or generally speaks to everyone) **and** no names are mentioned, select **all** available characters.
 5. Format your response as JSON: {"character_ids": ["eve", "atlas"]}
 
 Available characters:
@@ -63,6 +63,8 @@ class Router:
         name_mentions = set(re.findall(r"\b(eve|atlas)\b", message, flags=re.IGNORECASE))
         if name_mentions:
             return {n.lower() for n in name_mentions}
+
+        # Removed hard-coded group address heuristic; leave decision to LLM
 
         # Check if the message begins with a character name followed by punctuation/space
         m = re.match(r"^\s*(eve|atlas)[,:\s]", message, flags=re.IGNORECASE)
@@ -126,6 +128,11 @@ class Router:
             import json
             result = json.loads(response.content)
             selected_chars = set(result.get("character_ids", []))
+            if len(selected_chars) == 1:
+                plural_re = re.compile(r"\b(guys|everyone|folks|team|all|друзья|ребят|ребята|вы оба|вы все)\b", re.IGNORECASE)
+                if plural_re.search(message):
+                    print("[Router] LLM chose one but plural cue present – expanding to all characters.")
+                    selected_chars = valid_chars.copy()
             if not selected_chars:
                 print("[Router] Warning: LLM suggested no characters. Defaulting to Eve and Atlas.")
                 selected_chars = {"eve", "atlas"}

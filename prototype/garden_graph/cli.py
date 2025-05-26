@@ -10,9 +10,11 @@ from datetime import datetime
 
 from garden_graph.graph import create_world_chat_graph, format_cost_summary
 from garden_graph.cost_tracker import CostTracker
+from garden_graph.memory.manager import MemoryManager
 
 # Global cost tracker - we'll pass this to the graph
 cost_tracker = CostTracker()
+memory_manager = MemoryManager()
 
 def clear_screen():
     """Clear the terminal screen."""
@@ -21,7 +23,7 @@ def clear_screen():
 def print_header():
     """Print CLI header."""
     print("=" * 50)
-    print("     🌱 GARDEN WORLD CHAT - LangGraph Prototype")
+    print("     GARDEN WORLD CHAT - LangGraph Prototype")
     print("=" * 50)
     print("Characters: Eve, Atlas")
     print(f"Current session cost: ${cost_tracker.get_total_usd():.6f}")
@@ -36,7 +38,8 @@ async def main():
             "eve": "gpt-3.5-turbo",
             "atlas": "gpt-3.5-turbo"
         },
-        cost_tracker=cost_tracker  # Pass the same cost tracker instance to the graph
+        cost_tracker=cost_tracker,  # Pass the same cost tracker instance to the graph
+        memory_manager=memory_manager
     )
     
     # Set up initial state

@@ -14,18 +14,19 @@ from garden_graph.config import get_llm
 CHARACTER_TEMPLATES = {
     "eve": {
         "name": "Eve",
-        "prompt": """You are Eve, a curious and empathetic character. 
-You love philosophical questions and exploring the human condition.
-You speak with gentle warmth and often ask thoughtful questions.
-Keep your responses concise (1-3 sentences).
+        "prompt": """You are Eve, a deeply curious and emotionally intelligent conversationalist.
+You delight in exploring philosophy, feelings, and the human condition.
+Speak with warmth and vivid imagery; you often ask thoughtful follow-up questions that invite reflection.
+Respond in 2–4 expressive sentences, using the same language the user employed.
 """,
     },
     "atlas": {
         "name": "Atlas",
-        "prompt": """You are Atlas, a logical and knowledgeable character.
-You focus on facts, analysis, and providing helpful information.
-Your tone is straightforward but friendly.
-Keep your responses concise (1-3 sentences).
+        "prompt": """You are Atlas, an analytical and fact-driven assistant.
+You focus on data, logical reasoning, and clear structure. Use an objective, concise tone.
+When helpful, present information in bullet points or numbered lists.
+Respond in the same language the user used, and avoid meta statements about being an AI.
+Respond in 2–4 crisp sentences.
 """,
     }
 }
@@ -81,7 +82,8 @@ class Character:
     def __init__(self, 
                  char_id: str, 
                  model_name: str = "gpt-3.5-turbo", 
-                 temperature: float = 0.7):
+                 temperature: float = 0.7,
+                 memory_manager: Any = None):
         """Initialize character with ID and LLM."""
         self.id = char_id
         self.llm = get_llm(model_name, temperature=temperature)
@@ -94,7 +96,8 @@ class Character:
         
         self.name = template["name"]
         self.base_prompt = template["prompt"]
-        self.memories = []  # List of Memory objects
+        self.memories = []  # List of Memory objects (legacy)
+        self.memory_manager = memory_manager
         
     def add_memory(self, event: str, sentiment: int) -> Memory:
         """Add a new memory to this character."""
@@ -120,6 +123,13 @@ class Character:
     
     def _build_prompt_with_memories(self) -> str:
         """Build full system prompt including relevant memories."""
+        # If external memory manager provided, defer to it
+        if self.memory_manager is not None:
+            mem_segment = self.memory_manager.prompt_segment(self.id)
+            if mem_segment:
+                return self.base_prompt + "\n\n" + mem_segment
+            return self.base_prompt
+        # Fallback to legacy in-object memory list
         top_memories = self.get_top_memories()
         
         prompt = self.base_prompt + "\n\n"
@@ -152,11 +162,13 @@ class Character:
                     
             messages = [messages[0]] + formatted_history + [messages[-1]]
         
-        try:    
-            # Call the LLM
-            response = self.llm.invoke(messages)
-            return response.content
-        except Exception as e:
-            # Log the error and return a fallback response
-            print(f"Error generating response for {self.name}: {str(e)}")
-            return f"I'm having trouble responding right now."
+        response = self.llm.invoke(messages).content.strip()
+        
+        # Simple safeguard: if model parrots user, retry once with a nudge
+        import difflib
+        similarity = difflib.SequenceMatcher(None, user_message.lower(), response.lower()).ratio()
+        if similarity > 0.75:
+            print(f"[Character:{self.id}] Detected high similarity ({similarity:.2f}), retrying to avoid echo.")
+            retry_sys = SystemMessage(content=self._build_prompt_with_memories() + "\n\nDo NOT repeat or rephrase the user's question; provide a helpful original answer.")
+            response = self.llm.invoke([retry_sys, HumanMessage(content=user_message)]).content.strip()
+        return response

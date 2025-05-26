@@ -27,7 +27,8 @@ class ChatState(TypedDict):
 def create_world_chat_graph(
     router_model: str = ROUTER_MODEL,
     character_models: Dict[str, str] = None,
-    cost_tracker: Optional[CostTracker] = None
+    cost_tracker: Optional[CostTracker] = None,
+    memory_manager=None
 ) -> StateGraph:
     """Create the main LangGraph for world chat."""
     
@@ -46,7 +47,7 @@ def create_world_chat_graph(
         }
         
     characters = {
-        char_id: Character(char_id, model_name=model)
+        char_id: Character(char_id, model_name=model, memory_manager=memory_manager)
         for char_id, model in character_models.items()
     }
     
@@ -132,6 +133,10 @@ def create_world_chat_graph(
                 final_response += f"**{char_name}**: {responses[char_id]}\n\n"
         
         print(f"[Graph:collate_node] Final response: '{final_response[:30]}...'")
+        # Reflection – simple stub for now
+        if memory_manager is not None:
+            for char_id in state.get("selected_characters", set()):
+                memory_manager.reflect_stub(char_id, context=state["user_message"])
         return {"final_response": final_response}
         
     # Build the graph - simplified for latest LangGraph API
