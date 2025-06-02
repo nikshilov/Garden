@@ -52,32 +52,36 @@ def create_world_chat_graph(
     }
     
     # Define nodes
-    def route_node(state: ChatState) -> Dict[str, Any]:
-        user_message_content = state.get("user_message", "USER_MESSAGE_NOT_FOUND_IN_STATE")
-        active_chars_in_state = state.get('active_characters', set())
-        print(f"[Graph:route_node] Entered. User message: '{user_message_content}'. Current active_characters in state: {active_chars_in_state}")
-        
-        # user_message is a required key in ChatState, history is List[Dict]
-        user_message = state["user_message"] 
+    def route_message(state: ChatState) -> Dict:
+        """Router node decides which characters should respond."""
+        user_message = state["user_message"]
         history = state.get("message_history", [])
-
-        # Route only if no active characters yet
-        # The router.py's route method is guaranteed to return a non-empty set
-        if not active_chars_in_state: # Use the variable fetched safely
-            print("[Graph:route_node] No active characters in state, calling router.route().")
-            selected_character_ids = router.route(user_message, history) # router.py returns a set
-            
-            # Ensure we're returning a set, not a dict
-            # Also save a copy to selected_characters for display in CLI
-            update_payload = {
-                "active_characters": selected_character_ids,
-                "selected_characters": selected_character_ids.copy() if hasattr(selected_character_ids, 'copy') else set(selected_character_ids)
-            }
-            print(f"[Graph:route_node] router.route() returned: {selected_character_ids}. Returning update to graph state: {update_payload}")
-            return update_payload # Return only the changed part of the state
-        else:
-            print(f"[Graph:route_node] Characters {active_chars_in_state} already active. Skipping router.route(). Returning empty update.")
-            return {} # Return empty dict if no changes are made
+        
+        # Используем существующий метод router.route для определения активных персонажей
+        active_chars = router.route(user_message, history)
+        print(f"[Graph:route_message] Router selected: {active_chars}")
+        
+        # Track character selections for analytics & display
+        state["selected_characters"] = set(active_chars)
+        
+        # Analyze message and create memories / schedule events
+        if memory_manager and active_chars:
+            for char_id in active_chars:
+                try:
+                    memory_manager.analyze_message(char_id, user_message, is_user_message=True)
+                except Exception as e:
+                    print(f"[Graph:route_message] Error analyzing message for {char_id}: {e}")
+        
+        # Save memory and events state after processing a message
+        if memory_manager:
+            try:
+                memory_manager.save_to_file(memory_manager.get_default_filepath())
+                print(f"[Graph:route_message] Saved memory state")
+            except Exception as e:
+                print(f"[Graph:route_message] Error saving memory state: {e}")
+        
+        # Update active characters in state
+        return {"active_characters": set(active_chars)}
     
     def character_node(state: ChatState, character_id: str) -> Dict[str, Any]:
         """Character node generates a response for a specific character."""
@@ -119,31 +123,161 @@ def create_world_chat_graph(
     
     def collate_node(state: ChatState) -> Dict[str, Any]:
         """Collate responses from all active characters."""
-        print(f"[Graph:collate_node] Entered with character_responses: {list(state.get('character_responses', {}).keys())}")
+        print(f"[Graph:collate_node] Entered with character_responses: {list(state['character_responses'].keys())}")
         print(f"[Graph:collate_node] selected_characters: {state.get('selected_characters')}")
         
-        responses = state.get("character_responses", {})
+        # Get all character responses
+        responses = state["character_responses"]
+        selected_chars = state.get("selected_characters", set())
         
-        # Format the final output
-        final_response = ""
-        # Use selected_characters instead of active_characters (which gets emptied)
-        for char_id in state.get("selected_characters", set()):
+        # Format the final response
+        response_parts = []
+        for char_id in selected_chars:
             if char_id in responses:
-                char_name = characters[char_id].name
-                final_response += f"**{char_name}**: {responses[char_id]}\n\n"
+                response_parts.append(f"**{characters[char_id].name}**: {responses[char_id]}")
         
-        print(f"[Graph:collate_node] Final response: '{final_response[:30]}...'")
-        # Reflection – simple stub for now
+        final_response = "\n\n".join(response_parts)
+        print(f"[Graph:collate_node] Final response: '{final_response[:50]}...'")
+        
+        # Memory management: process conversation and reflect
         if memory_manager is not None:
             for char_id in state.get("selected_characters", set()):
-                memory_manager.reflect_stub(char_id, context=state["user_message"])
+                if char_id not in responses:
+                    continue  # Skip if no response from this character
+                    
+                # Get character's LLM if available for better memory processing
+                char_llm = None
+                if char_id in characters and hasattr(characters[char_id], 'llm'):
+                    char_llm = characters[char_id].llm
+                
+                # 1. Create new memories from messages (if significant)
+                user_message = state["user_message"]
+                char_response = responses[char_id]
+                
+                created_memories = memory_manager.process_conversation_update(
+                    character_id=char_id,
+                    user_message=user_message,
+                    character_response=char_response,
+                    llm=char_llm
+                )
+                
+                if created_memories:
+                    print(f"[Graph:collate_node] Created {len(created_memories)} new memories for {char_id}")
+                
+                # 2. Run reflection on existing memories
+                context = user_message
+                if len(state.get("message_history", [])) > 0:
+                    # Add some history for better context if available
+                    history_context = "\n".join([msg["content"] for msg in state.get("message_history", [])[-3:]])
+                    context = f"{history_context}\n{context}"
+                
+                memory_manager.reflect(char_id, context=context, llm=char_llm)
         return {"final_response": final_response}
+    
+    def cross_talk_node(state: ChatState) -> Dict[str, Any]:
+        """Allow characters to respond to each other's initial responses."""
+        print(f"[Graph:cross_talk_node] Entered with character_responses: {list(state['character_responses'].keys())}")
         
+        responses = state["character_responses"]
+        selected_chars = state.get("selected_characters", set())
+        
+        # Only do cross-talk if multiple characters responded
+        if len(responses) < 2:
+            print(f"[Graph:cross_talk_node] Only {len(responses)} character(s) responded, skipping cross-talk")
+            return {}
+        
+        # Let each character see the other's response and optionally react
+        cross_talk_responses = {}
+        for char_id in selected_chars:
+            if char_id not in responses:
+                continue
+                
+            # Build context showing other characters' responses
+            other_responses = []
+            for other_id, other_response in responses.items():
+                if other_id != char_id:
+                    other_responses.append(f"{characters[other_id].name}: {other_response}")
+            
+            if not other_responses:
+                continue
+            
+            # Ask character if they want to add to their response
+            cross_talk_prompt = f"""The user asked: "{state['user_message']}"
+
+Other characters responded:
+{chr(10).join(other_responses)}
+
+After seeing what {' and '.join([characters[oid].name for oid in responses if oid != char_id])} said:
+- Would you like to add a complementary perspective?
+- Do you have a different viewpoint on any specific point?
+- Is there something you'd like to highlight or clarify?
+
+Be natural in your response - you may agree, partially agree, or have a different take. If you genuinely have nothing to add, just respond with "pass".
+Keep it brief (1-2 sentences) and respond in the same language as the conversation."""
+            
+            character = characters[char_id]
+            print(f"[Graph:cross_talk_node:{char_id}] Generating cross-talk response")
+            
+            # Get character's cross-talk response
+            from langchain_core.messages import SystemMessage, HumanMessage
+            messages = [
+                SystemMessage(content=character._build_prompt_with_memories()),
+                HumanMessage(content=cross_talk_prompt)
+            ]
+            
+            try:
+                cross_talk_response = character.llm.invoke(messages).content.strip()
+                
+                # Record cost
+                model = character_models.get(char_id, "gpt-3.5-turbo")
+                prompt_tokens = len(cross_talk_prompt) // 4
+                completion_tokens = len(cross_talk_response) // 4
+                cost_tracker.record(model, prompt_tokens, completion_tokens)
+                
+                # Only add if character has something to say
+                if cross_talk_response.lower() != "pass" and len(cross_talk_response) > 5:
+                    cross_talk_responses[char_id] = cross_talk_response
+                    print(f"[Graph:cross_talk_node:{char_id}] Added cross-talk: '{cross_talk_response[:30]}...'")
+                else:
+                    print(f"[Graph:cross_talk_node:{char_id}] Character passed on cross-talk")
+                    
+            except Exception as e:
+                print(f"[Graph:cross_talk_node:{char_id}] Error during cross-talk: {e}")
+                continue
+        
+        # Merge cross-talk responses with original responses
+        if cross_talk_responses:
+            merged_responses = {}
+            for char_id in selected_chars:
+                if char_id in responses:
+                    merged_responses[char_id] = responses[char_id]
+                    if char_id in cross_talk_responses:
+                        merged_responses[char_id] += f"\n\n*({cross_talk_responses[char_id]})*"
+            
+            print(f"[Graph:cross_talk_node] Added {len(cross_talk_responses)} cross-talk responses")
+            return {"character_responses": merged_responses}
+        
+        print(f"[Graph:cross_talk_node] No cross-talk responses generated")
+        return {}
+        
+    # Define router branch - sequential processing
+    def router_branch(state: ChatState) -> str:
+        """Return next node to handle one character at a time."""
+        print(f"[Graph:router_branch] Entered with active_characters: {state['active_characters']}")
+        if not state["active_characters"]:
+            print(f"[Graph:router_branch] No active characters left, going to cross_talk")
+            return "cross_talk"
+        # Pop one character to handle now
+        next_char = state["active_characters"].pop()
+        print(f"[Graph:router_branch] Popped character: {next_char}, remaining: {state['active_characters']}")
+        return f"character_{next_char}"
+    
     # Build the graph - simplified for latest LangGraph API
     builder = StateGraph(ChatState)
     
     # Add nodes
-    builder.add_node("router", route_node)
+    builder.add_node("router", route_message)
+    builder.add_node("cross_talk", cross_talk_node)
     builder.add_node("collator", collate_node)
     
     # Add character nodes
@@ -151,30 +285,20 @@ def create_world_chat_graph(
         builder.add_node(f"character_{char_id}", 
                          lambda state, char_id=char_id: character_node(state, char_id))
     
-    # Define router branch - sequential processing
-    def router_branch(state: ChatState) -> str:
-        """Return next node to handle one character at a time."""
-        print(f"[Graph:router_branch] Entered with active_characters: {state['active_characters']}")
-        if not state["active_characters"]:
-            print(f"[Graph:router_branch] No active characters left, going to collator")
-            return "collator"
-        # Pop one character to handle now
-        next_char = state["active_characters"].pop()
-        print(f"[Graph:router_branch] Popped character: {next_char}, remaining: {state['active_characters']}")
-        # Keep the remaining characters in state for later
-        return f"character_{next_char}"
-    
     # Add conditional routing
     builder.add_conditional_edges("router", router_branch)
     
-    # For each character node add conditional edge: back to router if more chars else collate
+    # For each character node add conditional edge: back to router if more chars else cross_talk
     for char_id in characters:
         def _after_char(state: ChatState, *, _char_id=char_id):
-            # If there are still characters left, process next, else collate
+            # If there are still characters left, process next, else go to cross_talk
             if state["active_characters"]:
                 return "router"
-            return "collator"
+            return "cross_talk"
         builder.add_conditional_edges(f"character_{char_id}", _after_char)
+    
+    # Cross-talk always goes to collator
+    builder.add_edge("cross_talk", "collator")
     
     # Connect collator to END
     builder.add_edge("collator", END)
@@ -185,17 +309,17 @@ def create_world_chat_graph(
     # Compile the graph
     return builder.compile()
 
-def format_cost_summary(costs: Dict) -> str:
+def format_cost_summary(cost_tracker) -> str:
     """Format cost summary for display."""
-    total_usd = sum(cost["usd"] for cost in costs.values())
+    if not cost_tracker or not hasattr(cost_tracker, 'get_total_usd'):
+        return "Cost tracking disabled"
+        
+    total_usd = cost_tracker.get_total_usd()
+    model_breakdown = cost_tracker.get_model_breakdown()
     
     summary = f"Cost: ${total_usd:.6f}\n"
-    for model, cost in costs.items():
-        prompt_tokens = cost.get("prompt_tokens", 0)
-        completion_tokens = cost.get("completion_tokens", 0)
-        total_tokens = prompt_tokens + completion_tokens
-        model_usd = cost.get("usd", 0)
-        
-        summary += f"  {model}: {total_tokens} tokens, ${model_usd:.6f}\n"
+    for model, model_usd in model_breakdown.items():
+        # Можно добавить подробную информацию о токенах позже
+        summary += f"  {model}: ${model_usd:.6f}\n"
         
     return summary

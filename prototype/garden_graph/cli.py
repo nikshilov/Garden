@@ -14,7 +14,31 @@ from garden_graph.memory.manager import MemoryManager
 
 # Global cost tracker - we'll pass this to the graph
 cost_tracker = CostTracker()
-memory_manager = MemoryManager()
+
+# Initialize memory manager with existing memories
+print("Initializing memory manager...")
+# Пробуем загрузить существующую память, если файл не найден - создаем новый экземпляр
+try:
+    memory_manager = MemoryManager()
+    default_path = memory_manager.get_default_filepath()
+    print(f"Loading memories from {default_path}")
+    if os.path.exists(default_path):
+        memory_manager.load_from_file(default_path)
+        print(f"Loaded {len(memory_manager._records)} memory records")
+    else:
+        print("No existing memories found, starting fresh")
+        
+    # Check for scheduled events
+    event_count = len(memory_manager.scheduler._events)
+    print(f"Loaded {event_count} scheduled events")
+    
+except Exception as e:
+    print(f"Failed to initialize memory manager: {e}")
+    memory_manager = MemoryManager()
+    print("Created new memory manager")
+
+# Enable memory debug mode
+DEBUG_MEMORY = True
 
 def clear_screen():
     """Clear the terminal screen."""
@@ -60,13 +84,63 @@ async def main():
     print("Type '@eve' or '@atlas' to address characters directly.")
     print("Type 'exit' or 'quit' to end the session.\n")
     
+    # Event checking - track last check time
+    last_event_check = datetime.now()
+    event_check_interval = 60  # seconds
+    idle_threshold = 300  # seconds (5 minutes)
+    last_activity = datetime.now()
+    
     # Main chat loop
     while True:
-        # Get user input
-        user_message = input("\nYou: ")
+        # Check for scheduled events and reminders
+        now = datetime.now()
+        time_since_check = (now - last_event_check).total_seconds()
+        time_since_activity = (now - last_activity).total_seconds()
+        
+        # Only check for events if enough time has passed since last check
+        if time_since_check >= event_check_interval:
+            # Check for both characters when idle
+            if time_since_activity >= idle_threshold:
+                # User has been idle, check for events from any character
+                for char_id in ["eve", "atlas"]:
+                    pending_events = memory_manager.check_pending_events(char_id, now)
+                    pending_reminders = memory_manager.check_pending_reminders(char_id, now)
+                    
+                    # If we have events due, notify the user
+                    if pending_events or pending_reminders:
+                        print(f"\n{'='*50}")
+                        print(f"SCHEDULED EVENT NOTIFICATION FROM {char_id.upper()}:")
+                        
+                        if pending_events:
+                            print(f"\nDue events:")
+                            for event in pending_events:
+                                print(f"• {event['time'].strftime('%H:%M')} - {event['description']}")
+                                # Don't mark as completed since user isn't actively responding
+                        
+                        if pending_reminders:
+                            print(f"\nUpcoming events (reminders):")
+                            for reminder in pending_reminders:
+                                print(f"• {reminder['time'].strftime('%H:%M')} - {reminder['description']}")
+                        
+                        print(f"{'='*50}\n")
+            
+            last_event_check = now
+        
+        # Non-blocking input with timeout to check for events periodically
+        try:
+            # Set timeout for input to enable periodic event checking
+            # This is tricky in a standard CLI - we'll use a simple approach
+            print("\nYou: ", end="", flush=True)
+            user_message = input()
+            last_activity = datetime.now()  # Update last activity time
+        except Exception:  # Handle any input issues
+            continue
         
         # Check for exit command
         if user_message.lower() in ["exit", "quit", "q"]:
+            # Save memories before exiting
+            memory_manager.save_to_file(memory_manager.get_default_filepath())
+            print("Saved memories to disk. Goodbye!")
             break
             
         # Update state with user message
@@ -91,6 +165,27 @@ async def main():
         selected_chars_list = list(state["selected_characters"]) if state["selected_characters"] else []
         selected_chars = ", ".join(selected_chars_list)
         print(f"\n[Router selected: {selected_chars}]")
+        
+        # Print cost summary for this interaction
+        cost_summary = format_cost_summary(cost_tracker)
+        if cost_summary:
+            print(cost_summary)
+        
+        # Debug memory creation if enabled
+        if DEBUG_MEMORY and "final_response" in state and memory_manager:
+            # Check for new memories in the last interaction
+            all_memories = memory_manager.all_active("eve")
+            if all_memories:
+                print(f"\n[DEBUG] Active memories for Eve: {len(all_memories)}")
+                for mem in all_memories[-3:]:  # Show last 3 memories
+                    print(f"[MEM] {mem.id[:8]}: '{mem.event_text[:50]}...' (w={mem.weight:.2f}, s={mem.sentiment})")
+            else:
+                print("\n[DEBUG] No active memories for Eve")
+                
+            # Save memories after each interaction
+            default_path = memory_manager.get_default_filepath()
+            memory_manager.save_to_file(default_path)
+            print(f"[DEBUG] Memories saved to file: {default_path}")
         
         # Print character responses
         if state["final_response"]:

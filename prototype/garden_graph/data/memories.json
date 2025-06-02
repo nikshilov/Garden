@@ -1,0 +1,13 @@
+{
+  "ff149e0b-7888-4f50-88b4-bfa808ee5d3d": {
+    "id": "ff149e0b-7888-4f50-88b4-bfa808ee5d3d",
+    "character_id": "eve",
+    "event_text": "привет Ева! Ты... ты такая чувственная! Я ощущаю себя дома рядом с тобой",
+    "weight": 0.7629999999999999,
+    "sentiment": 2,
+    "sentiment_label": "affection",
+    "created_at": "2025-06-02T17:04:53.402110+00:00",
+    "last_touched": "2025-06-02T17:04:53.402110+00:00",
+    "archived": false
+  }
+}

@@ -7,6 +7,8 @@ A prototype implementation of a multi-character chat system using LangGraph, sup
 - **Multi-Model Support**: Works with OpenAI, Anthropic, Google, Groq, and OpenRouter models
 - **Router Node**: Directs messages to appropriate characters
 - **Character Nodes**: Individual AI characters with memory
+- **Memory Management**: Comprehensive memory system with persistence and reflection
+- **Time-Aware**: Characters acknowledge time gaps between conversations
 - **Cost Tracking**: Tracks token usage and costs across providers
 - **Configuration**: Easy setup via environment variables
 - **CLI Interface**: Test the system from the command line
@@ -87,6 +89,12 @@ garden_graph/
 ├── character.py        # Character implementation
 ├── cost_tracker.py     # Token and cost tracking
 ├── graph.py            # Main LangGraph implementation
+├── memory/             # Memory management system
+│   ├── __init__.py     # Memory package initialization
+│   └── manager.py      # MemoryManager implementation
+├── tests/              # Test suite
+│   ├── test_router.py  # Router tests
+│   ├── test_memory_*.py # Memory system tests
 ├── cli.py              # Command-line interface
 ├── streamlit_app.py    # Web interface
 └── requirements.txt    # Python dependencies
@@ -125,16 +133,39 @@ User Message → Router → Character Node(s) → Collator → UI
 
 Each character maintains:
 - Base personality prompt
-- Weighted memories that decay over time
+- Weighted memories with sentiment and relevance scoring
+- Time-awareness and conversation history
 - Model selection (can be changed in UI)
+
+## 🧠 Memory System
+
+The P2 Memory Core phase has been completed with the following features:
+
+- **Memory Management**: Full CRUD operations for memory records with weight-based relevance
+- **Reflection Engine**: LLM-powered analysis of memory relevance to current context
+- **Automatic Memory Creation**: Creates memories from significant messages or explicit commands
+- **Sentiment Analysis**: Analyzes emotional sentiment of messages (-2 to +2 scale)
+- **Forgiveness & Amplification**: Adjusts weights of opposite/matching sentiment memories
+- **Persistence**: Save/load memory to/from JSON files with automatic archiving
+- **Time Awareness**: Characters acknowledge time gaps between conversations
+
+Memory records include:
+- Unique identifier
+- Character association
+- Event text content
+- Creation timestamp
+- Last accessed timestamp
+- Sentiment score (-2 to +2)
+- Weight/importance (0.0 to 1.0)
+- Active/archived status
 
 ## Next Steps
 
-After validating the prototype:
-1. Port to Swift LangGraph implementation
-2. Implement detailed memory and reflection algorithms
-3. Add Core Data persistence
-4. Build SwiftUI layer
+After completing P2 Memory Core:
+1. Implement P3 Cost Tracker with budget alerts
+2. Complete P4 Persistence & Sync with Core Data
+3. Package LangGraph MVP as v0.1.0
+4. Begin P6 iOS UI prototype implementation
 
 ## Credits
 

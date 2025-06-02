@@ -5,13 +5,23 @@ UUID.  Easy to unit-test and can be swapped for persistent storage later.
 """
 from __future__ import annotations
 
-import uuid, math
+import uuid, math, re, os, json
 from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
+
+from .scheduler import EventScheduler
 
 DECAY_LAMBDA = 0.05        # ≈ half-life 13.9 days
 MIN_ACTIVE_WEIGHT = 0.05   # below this we archive
+
+# New constants for emotional memory weighting
+PERSONAL_SENSITIVITY = {
+    "eve": {"praise": 1.2, "insult": 1.5, "affection": 1.3},
+    "atlas": {"praise": 1.1, "insult": 1.4, "affection": 1.0},
+}
+
+RELATIONSHIP_DECAY = 0.0005  # daily passive decay toward 0
 
 
 @dataclass
@@ -21,6 +31,7 @@ class MemoryRecord:
     event_text: str
     weight: float          # initial weight w0
     sentiment: int         # –2 .. +2
+    sentiment_label: str   # label for sentiment (e.g. 'positive', 'negative', 'neutral')
     created_at: datetime
     last_touched: datetime
     archived: bool = False
@@ -34,28 +45,607 @@ class MemoryRecord:
 
 
 def _initial_weight(sentiment: int, user_flag: bool = False) -> float:
+    """Calculate initial weight based on sentiment and user flag.
+    
+    Args:
+        sentiment: Sentiment value (-2 to +2)
+        user_flag: Whether this memory was explicitly flagged by user
+        
+    Returns:
+        Initial weight value between 0.1 and 1.0
+    """
     w0 = abs(sentiment) * 0.3
     if user_flag:
         w0 += 0.4
     return max(0.1, min(1.0, w0))
 
 
+def _analyze_sentiment(text: str, llm=None, character_id: str = None) -> int:
+    """Analyze the importance of a message based on context and character personality.
+    
+    Args:
+        text: Text to analyze
+        llm: Optional LLM to use for analysis
+        character_id: ID of the character to consider personality traits
+        
+    Returns:
+        Importance value: -2 (very negative impact) to +2 (very positive impact)
+    """
+    # Use LLM if available - this is the preferred method
+    if llm:
+        try:
+            print(f"[MemoryManager] Using LLM for sentiment analysis for character {character_id}")
+            
+            # Get character traits if available
+            character_context = ""
+            if character_id == "eve":
+                character_context = "You are Eve, a deeply curious and emotionally intelligent being who values empathy, connection, and learning."
+            elif character_id == "atlas":
+                character_context = "You are Atlas, a logical, analytical being who values knowledge, precision, and problem-solving."
+            
+            messages = [
+                {"role": "system", "content": f"""
+                {character_context}
+                Analyze the importance of the following message for your character.
+                Consider:
+                1. How emotionally significant is this message for you? 
+                2. Does it relate to your core values or interests?
+                3. How memorable would this interaction be for you?
+                
+                Rate the importance on a scale from -2 to +2:
+                -2: Very negative/distressing event worth remembering
+                -1: Somewhat negative event
+                0: Neutral/forgettable event
+                +1: Somewhat positive/interesting event
+                +2: Very positive/significant event worth remembering
+                
+                Respond ONLY with a single number (-2, -1, 0, 1, or 2).
+                """}, 
+                {"role": "user", "content": text}
+            ]
+            
+            response = llm.invoke(messages)
+            try:
+                # Extract just the numeric value
+                sentiment = int(response.content.strip())
+                # Validate it's in our expected range
+                if sentiment < -2:
+                    sentiment = -2
+                elif sentiment > 2:
+                    sentiment = 2
+                print(f"[MemoryManager] LLM determined importance: {sentiment} for character {character_id}")
+                return sentiment
+            except ValueError:
+                print(f"[MemoryManager] Could not parse LLM sentiment response: '{response.content}'")
+                # Fall through to keyword-based analysis
+        except Exception as e:
+            print(f"[MemoryManager] Error in LLM sentiment analysis: {e}")
+            # Fall through to keyword-based analysis
+    
+    # Keyword-based sentiment analysis with intensity levels - English
+    strong_positive = set(['love', 'adore', 'amazing', 'wonderful', 'fantastic', 'excellent', 'great', 'awesome'])
+    mild_positive = set(['good', 'nice', 'like', 'pleased', 'satisfied', 'helpful', 'enjoy', 'enjoyed', 'appreciate'])
+    
+    strong_negative = set(['hate', 'terrible', 'awful', 'horrible', 'worst', 'disaster', 'dreadful', 'disgusting'])
+    mild_negative = set(['bad', 'dislike', 'annoyed', 'upset', 'disappointed', 'poor', 'unpleasant'])
+    
+    # Keyword-based sentiment analysis with intensity levels - Russian
+    strong_positive_ru = set(['обожаю', 'люблю', 'влюбился', 'влюбилась', 'влюбиться', 'любимый', 'любимая', 'превосходно', 'восхитительно', 'изумительно', 'выдающийся', 'блестяще', 'идеально', 'фантастически', 'супер', 'великолепно'])
+    mild_positive_ru = set(['хорошо', 'приятно', 'нравится', 'рад', 'доволен', 'полезно', 'понравилось', 'ценю', 'здорово'])
+    
+    strong_negative_ru = set(['ненавижу', 'ужасно', 'отвратительно', 'кошмарно', 'худший', 'катастрофа', 'кошмар', 'омерзительно'])
+    mild_negative_ru = set(['плохо', 'не нравится', 'раздражает', 'расстроен', 'разочарован', 'неприятно'])
+    
+    # Combine all dictionaries
+    strong_positive = strong_positive.union(strong_positive_ru)
+    mild_positive = mild_positive.union(mild_positive_ru)
+    strong_negative = strong_negative.union(strong_negative_ru)
+    mild_negative = mild_negative.union(mild_negative_ru)
+    
+    # Define intensifiers that amplify sentiment (English and Russian)
+    intensifiers = set(['very', 'extremely', 'absolutely', 'really', 'so', 'incredibly', 'totally', 
+                       'очень', 'крайне', 'абсолютно', 'реально', 'невероятно', 'просто', 'совершенно'])
+    
+    text_lower = text.lower()
+    words = text_lower.split()
+    
+    # Check for intensifiers before sentiment words
+    intensifier_present = False
+    for i, word in enumerate(words[:-1]):
+        if word in intensifiers and (words[i+1] in strong_positive or words[i+1] in mild_positive or 
+                                    words[i+1] in strong_negative or words[i+1] in mild_negative):
+            intensifier_present = True
+            break
+    
+    # Count occurrences with emphasis on strong words
+    strong_pos_count = sum(1 for w in words if w in strong_positive)
+    mild_pos_count = sum(1 for w in words if w in mild_positive)
+    strong_neg_count = sum(1 for w in words if w in strong_negative)
+    mild_neg_count = sum(1 for w in words if w in mild_negative)
+    
+    # Count multiple occurrences for enhanced differentiation
+    pos_words = [w for w in words if w in strong_positive or w in mild_positive]
+    neg_words = [w for w in words if w in strong_negative or w in mild_negative]
+    
+    # Calculate overall sentiment score with weights
+    pos_score = (strong_pos_count * 2) + mild_pos_count
+    neg_score = (strong_neg_count * 2) + mild_neg_count
+    
+    # Apply intensity boost for multiple sentiment words or intensifiers
+    if intensifier_present:
+        if pos_score > neg_score:
+            pos_score += 2
+        elif neg_score > pos_score:
+            neg_score += 2
+    
+    # Handle multiple occurrences of the same sentiment
+    if len(pos_words) >= 3 or len(neg_words) >= 3:
+        if pos_score > neg_score:
+            pos_score += 1
+        elif neg_score > pos_score:
+            neg_score += 1
+    
+    # Convert to -2 to +2 scale with finer gradation
+    if pos_score > neg_score:
+        if strong_pos_count >= 2 or pos_score >= 5 or (intensifier_present and strong_pos_count >= 1):
+            return 2  # Very positive
+        else:
+            return 1  # Somewhat positive
+    elif neg_score > pos_score:
+        if strong_neg_count >= 2 or neg_score >= 5 or (intensifier_present and strong_neg_count >= 1):
+            return -2  # Very negative
+        else:
+            return -1  # Somewhat negative
+    else:
+        return 0  # Neutral
+
+
 class MemoryManager:
     """Lightweight in-memory manager for the MVP."""
 
-    def __init__(self) -> None:
+    def __init__(self, memories_path: Optional[str] = None, events_path: Optional[str] = None) -> None:
         self._records: Dict[str, MemoryRecord] = {}
+        
+        # Default file paths
+        self.memories_path = memories_path
+        if not memories_path and os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'data')):
+            self.memories_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'memories.json')
+            
+        # Initialize event scheduler
+        self.events_path = events_path
+        if not events_path and os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'data')):
+            self.events_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'scheduled_events.json')
+            
+        self.scheduler = EventScheduler(self.events_path)
+        
+        # --- Relationship tracking ---
+        self.relationship_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'relationships.json')
+        self.relationships = self._load_relationships()
+    
+    # ---------------- Memory Creation from Messages ----------------
+    
+    def _contains_time_reference(self, text: str) -> bool:
+        """Check if text contains time references like hour:minute.
+        
+        Args:
+            text: Text to check for time references
+            
+        Returns:
+            True if text contains time references, False otherwise
+        """
+        # Simple patterns for time
+        time_patterns = [
+            r'\d{1,2}\s*:\s*\d{2}',             # 11:00, 11 : 00
+            r'\d{1,2}\s*час',                   # 11 часов (Russian)
+            r'\d{1,2}\s*(am|pm|AM|PM)',        # 11am, 11 am, 11AM
+            r'в\s+\d{1,2}(\s*[:.,-]\s*\d{2})?', # в 11, в 11:00, в 11-00 (Russian)
+            r'завтра в\s+\d{1,2}',              # завтра в 11 (Russian)
+            r'в\s+\d{1,2}\s*ч',                # в 11 ч (Russian)
+            r'\d{1,2}\s*[:.,-]\s*\d{2}',        # 11:00, 11.00, 11-00
+        ]
+        
+        # Check for scheduling keywords
+        schedule_keywords = ['встреча', 'meeting', 'appointment', 'свидание', 'встретимся', 
+                          'увидимся', 'созвонимся', 'напомни', 'remind', 'calendar',
+                          'schedule', 'запланируем', 'запланировать']
+                          
+        # Check if any time pattern is found
+        for pattern in time_patterns:
+            if re.search(pattern, text, re.IGNORECASE):
+                return True
+                
+        # If we have scheduling keywords, it's worth checking more carefully
+        for keyword in schedule_keywords:
+            if keyword in text.lower():
+                # Look for numbers that might be hours
+                hour_pattern = r'\b\d{1,2}\b'
+                if re.search(hour_pattern, text):
+                    return True
+                    
+        return False
+        
+    def check_pending_events(self, character_id: str, current_time: Optional[datetime] = None) -> List[Dict]:
+        """Check for any events that are due for a character.
+        
+        Args:
+            character_id: ID of the character to check events for
+            current_time: Current time to check against (default: now)
+            
+        Returns:
+            List of event details dictionaries
+        """
+        if current_time is None:
+            current_time = datetime.now(timezone.utc)
+            
+        pending_events = self.scheduler.get_pending_events(current_time)
+        character_events = [event for event in pending_events 
+                           if event.character_id == character_id]
+        
+        # Convert events to simplified dictionaries
+        event_details = []
+        for event in character_events:
+            event_details.append({
+                'id': event.id,
+                'time': event.event_time,
+                'description': event.description,
+                'completed': event.completed
+            })
+            
+        return event_details
+        
+    def check_pending_reminders(self, character_id: str, current_time: Optional[datetime] = None) -> List[Dict]:
+        """Check for any reminders that are due for a character.
+        
+        Args:
+            character_id: ID of the character to check reminders for
+            current_time: Current time to check against (default: now)
+            
+        Returns:
+            List of event details dictionaries for events with due reminders
+        """
+        if current_time is None:
+            current_time = datetime.now(timezone.utc)
+            
+        pending_reminders = self.scheduler.get_pending_reminders(current_time)
+        character_reminders = [event for event in pending_reminders 
+                              if event.character_id == character_id]
+        
+        # Convert events to simplified dictionaries
+        reminder_details = []
+        for event in character_reminders:
+            reminder_details.append({
+                'id': event.id,
+                'time': event.event_time,
+                'description': event.description,
+                'reminder_time': event.reminder_time
+            })
+            
+        return reminder_details
+        
+    def complete_event(self, event_id: str, user_responded: bool = True) -> bool:
+        """Mark an event as completed.
+        
+        Args:
+            event_id: ID of the event to mark as completed
+            user_responded: Whether the user responded to the event
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        return self.scheduler.mark_event_completed(event_id, user_responded)
+        
+    def create_scheduled_event(self, character_id: str, message: str) -> Optional[str]:
+        """Create a scheduled event from message text using LLM extraction.
+        
+        Args:
+            character_id: ID of the character who would own this event
+            message: The message text containing scheduling information
+            
+        Returns:
+            ID of the created event if successful, None otherwise
+        """
+        try:
+            if not self._contains_time_reference(message):
+                return None
+                
+            print(f"[MemoryManager] Creating scheduled event for {character_id} from message: '{message}'")
+            # Extract event details from the message using LLM
+            event_details = self.scheduler._extract_event_details_llm(message)
+            
+            if not event_details:
+                print(f"[MemoryManager] Could not extract event details from message")
+                return None
+                
+            # Create the event
+            event_id = self.scheduler.create_event(
+                character_id=character_id,
+                event_time=event_details['time'],
+                description=event_details['description'],
+                reminder_minutes=event_details.get('reminder_minutes', 15)
+            )
+            
+            # Save events to file
+            self.scheduler.save_events()
+            
+            print(f"[MemoryManager] Created scheduled event with ID: {event_id}")
+            return event_id
+        except Exception as e:
+            print(f"[MemoryManager] Error creating scheduled event: {e}")
+            return None
+    
+    def _analyze_message_llm(self, character_id: str, text: str, llm=None) -> Tuple[float, str]:
+        """Analyze message using LLM to determine emotional significance and category.
+        
+        Args:
+            character_id: ID of the character who would receive this memory
+            text: Text to analyze
+            llm: Optional LLM to use for analysis (will use default if None)
+            
+        Returns:
+            Tuple of (significance, category)
+            - significance: float from -2.0 to 2.0 representing emotional impact
+            - category: string categorization (praise, insult, affection, important fact, general, other)
+        """
+        # Simplified system prompt for mini model
+        system_prompt = """Analyze the following message to determine:
+1. Emotional significance (scale -10 to +10) where:
+   - Negative values indicate negative emotional impact (insults, criticism, etc.)
+   - Positive values indicate positive emotional impact (praise, affection, etc.)
+   - The absolute value indicates intensity (0=neutral, ±10=extremely strong)
+2. Category (choose one): praise, insult, affection, important fact, general, other
+3. Brief explanation
+
+Respond in JSON format:
+{
+    "significance": <float>,
+    "category": "<category>",
+    "explanation": "<brief reason>"
+}"""
+        
+        user_prompt = f"Message to analyze: '{text}'"
+        
+        try:
+            # Try to use provided LLM or fall back to default
+            from langchain_core.messages import SystemMessage, HumanMessage
+            
+            messages = [
+                SystemMessage(content=system_prompt),
+                HumanMessage(content=user_prompt)
+            ]
+            
+            if llm:
+                response = llm.invoke(messages, temperature=0.1)
+            else:
+                from langchain_openai import ChatOpenAI
+                mini_llm = ChatOpenAI(model="gpt-4.1-mini", temperature=0.1)
+                response = mini_llm.invoke(messages)
+                
+            # Extract content from response
+            content = response.content.strip()
+            
+            # Find JSON in response (it might be wrapped in markdown code blocks)
+            json_match = re.search(r'```json\s*(.*?)\s*```', content, re.DOTALL)
+            if json_match:
+                content = json_match.group(1)
+            else:
+                json_match = re.search(r'```\s*(.*?)\s*```', content, re.DOTALL)
+                if json_match:
+                    content = json_match.group(1)
+            
+            # Parse response as JSON
+            result = json.loads(content)
+            
+            # Normalize significance to our scale (-2 to 2)
+            normalized_significance = (result["significance"] / 5.0)
+            normalized_significance = max(-2.0, min(2.0, normalized_significance))
+            
+            print(f"[MemoryManager] LLM analysis: {result}")
+            
+            return normalized_significance, result["category"]
+        except Exception as e:
+            print(f"[MemoryManager] LLM analysis failed: {e}")
+            # Fall back to simpler analysis method
+            category = self._classify_category(text)
+            sentiment = _analyze_sentiment(text, llm=llm, character_id=character_id)
+            return float(sentiment), category
+
+    def analyze_message(self, character_id: str, message: str, is_user_message: bool = True, llm=None) -> Optional[str]:
+        """Analyze a message and create a memory if it's significant.
+        
+        Args:
+            character_id: ID of the character who would own this memory
+            message: The message text to analyze
+            is_user_message: Whether this is from the user (True) or character (False)
+            llm: Optional LLM to use for analysis
+            
+        Returns:
+            ID of the created memory if one was created, None otherwise
+        """
+        # Skip very short messages - unlikely to be meaningful
+        if len(message.strip()) < 10:
+            print(f"[MemoryManager] Message too short: {len(message.strip())} chars")
+            return None
+            
+        # Check for explicit remember command
+        memory_command = False
+        memory_text = message
+        
+        if is_user_message and ('#remember' in message.lower() or '#запомни' in message.lower()):
+            memory_command = True
+            # Extract the actual memory text (everything after the command)
+            for cmd in ['#remember', '#запомни']:
+                if cmd in message.lower():
+                    parts = message.lower().split(cmd, 1)
+                    if len(parts) > 1:
+                        memory_text = parts[1].strip()
+                    break
+                    
+        # Check for appointment/scheduling information
+        if is_user_message and self._contains_time_reference(message):
+            # Try to extract scheduling information
+            event_data = self.scheduler.extract_event_details_from_text(message, llm)
+            if event_data:
+                # Create a scheduled event
+                event_id = self.scheduler.schedule_event(
+                    character_id=character_id,
+                    event_time=event_data.get("event_time"),
+                    description=event_data.get("description"),
+                    reminder_minutes=event_data.get("reminder_minutes", 5)
+                )
+                print(f"[MemoryManager] Created scheduled event: {event_id} at {event_data.get('event_time')}")
+                
+                # Also create a memory about this scheduled event
+                memory_text = f"User scheduled event: {event_data.get('description')} at {event_data.get('event_time')}"
+                memory_command = True  # Force memory creation for scheduled events
+        
+        # Use LLM to analyze message significance and category
+        significance, category = self._analyze_message_llm(character_id, memory_text, llm)
+        
+        # Convert floating point significance to integer sentiment for compatibility
+        sentiment = int(round(significance))
+        
+        print(f"[MemoryManager] Analyzed importance: {significance:.2f} (cat={category}) for character {character_id}: '{memory_text[:30]}...'")
+        
+        # Create memory if it has any meaningful significance or was explicitly requested
+        if memory_command or abs(significance) > 0.2:  # Lower threshold to catch subtle emotional content
+            print(f"[MemoryManager] Creating memory with significance {significance:.2f} (command: {memory_command})")
+            # Create a concise summary if it's too long
+            if len(memory_text) > 200:
+                summary = self._summarize_text(memory_text, llm=llm)
+            else:
+                summary = memory_text
+                
+            # Compute novelty for emotional weight
+            novelty = self._compute_novelty(character_id, memory_text)
+            
+            # Get personal factor based on character and category
+            personal_factor = self._get_personal_factor(character_id, category)
+            
+            # Calculate weighted importance
+            raw_score = abs(significance) * novelty * personal_factor
+            weight = min(1.0, 0.1 + 0.3 * raw_score)
+            
+            # Apply forgiveness/amplification to existing memories before saving new one
+            if abs(significance) >= 0.5:  # Lower threshold for emotional impact
+                self._apply_forgiveness_amplification(character_id, sentiment)
+            
+            # Then create the new memory with computed weight
+            memory = self.create(
+                character_id=character_id,
+                event_text=summary[:500],  # Enforce maximum length
+                sentiment=sentiment,
+                sentiment_label=category,
+                user_flag=memory_command,
+                weight_override=weight
+            )
+            
+            # Update relationship score
+            self._update_relationship(character_id, category, significance, personal_factor)
+            
+            return memory.id
+            
+        return None
+    
+    def _summarize_text(self, text: str, max_length: int = 200, llm=None) -> str:
+        """Create a concise summary of text.
+        
+        Args:
+            text: Text to summarize
+            max_length: Maximum length of summary
+            llm: Optional LLM to use for summarization
+            
+        Returns:
+            Summarized text
+        """
+        if llm:
+            try:
+                from langchain_core.messages import SystemMessage, HumanMessage
+                prompt = f"""Summarize the following text in a single concise sentence (max {max_length} characters):
+                
+                {text}
+                
+                Concise summary:"""
+                
+                messages = [
+                    SystemMessage(content="You are a helpful assistant that creates concise summaries."),
+                    HumanMessage(content=prompt)
+                ]
+                
+                response = llm.invoke(messages)
+                summary = response.content.strip()
+                
+                # Ensure it's not too long
+                if len(summary) > max_length:
+                    summary = summary[:max_length-3] + "..."
+                    
+                return summary
+                
+            except Exception as e:
+                print(f"Error during summarization: {e}")
+                # Fall through to simple summarization
+        
+        # Simple fallback: truncate with ellipsis
+        if len(text) > max_length:
+            return text[:max_length-3] + "..."
+        return text
+    
+    def process_conversation_update(self, character_id: str, user_message: str, character_response: str, llm=None) -> List[str]:
+        """Process a conversation update and create memories if appropriate.
+        
+        This is the main entry point for updating memories based on conversation.
+        
+        Args:
+            character_id: ID of the character involved
+            user_message: The user's message
+            character_response: The character's response
+            llm: Optional LLM to use for analysis
+            
+        Returns:
+            List of memory IDs created (if any)
+        """
+        created_memories = []
+        
+        # Analyze user message for potential memory creation
+        user_memory_id = self.analyze_message(
+            character_id=character_id,
+            message=user_message,
+            is_user_message=True,
+            llm=llm
+        )
+        
+        if user_memory_id:
+            created_memories.append(user_memory_id)
+        
+        # Analyze character response for potential memory creation
+        # (less common, but could happen for significant responses)
+        char_memory_id = self.analyze_message(
+            character_id=character_id,
+            message=character_response,
+            is_user_message=False,
+            llm=llm
+        )
+        
+        if char_memory_id:
+            created_memories.append(char_memory_id)
+            
+        return created_memories
 
     # ---------------- CRUD ----------------
-    def create(self, *, character_id: str, event_text: str, sentiment: int, user_flag: bool = False) -> MemoryRecord:
+    def create(self, *, character_id: str, event_text: str, sentiment: int, sentiment_label: str, user_flag: bool = False, weight_override: float = None) -> MemoryRecord:
         rec_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
+        if weight_override is not None:
+            init_weight = max(0.0, min(1.0, weight_override))
+        else:
+            init_weight = _initial_weight(sentiment, user_flag)
+        
         rec = MemoryRecord(
             id=rec_id,
             character_id=character_id,
             event_text=event_text[:500],
-            weight=_initial_weight(sentiment, user_flag),
+            weight=init_weight,
             sentiment=sentiment,
+            sentiment_label=sentiment_label,
             created_at=now,
             last_touched=now,
         )
@@ -106,16 +696,145 @@ class MemoryManager:
         for rec in active[:-cap]:
             rec.archived = True
 
-    # -------- reflection stub --------
-    def reflect_stub(self, character_id: str, context: str) -> List[Tuple[str, float]]:
-        """Dummy reflection: nudges weights by ±0.1 for top-3 memories."""
+    # -------- reflection engine --------
+    def reflect(self, character_id: str, context: str, llm=None) -> List[Tuple[str, float]]:
+        """Perform reflection on memories based on current context.
+        
+        Uses the character's LLM to analyze relevance between context and memories,
+        and updates memory weights accordingly.
+        
+        Args:
+            character_id: ID of the character whose memories to reflect on
+            context: Current conversation context
+            llm: Optional LLM instance to use for reflection
+            
+        Returns:
+            List of (memory_id, new_weight) tuples for updated memories
+        """
+        if not llm:
+            # In a real implementation, we would get the character's LLM
+            # For now, use a dummy reflection as fallback
+            return self._reflect_fallback(character_id, context)
+            
+        top_memories = self.top_k(character_id, k=5)  # Get more than we'll show to prompt
+        
+        if not top_memories:
+            return []  # No memories to reflect on
+            
+        # Prepare prompt for reflection
+        prompt = self._build_reflection_prompt(context, top_memories)
+        
+        try:
+            # Ask LLM to evaluate memory relevance
+            from langchain_core.messages import SystemMessage, HumanMessage
+            messages = [
+                SystemMessage(content=prompt),
+                HumanMessage(content=context)
+            ]
+            response = llm.invoke(messages)
+            
+            # Parse the response and update memory weights
+            updates = self._parse_reflection_response(response.content, top_memories)
+            self._apply_memory_updates(updates)
+            return updates
+            
+        except Exception as e:
+            print(f"Error during reflection: {e}")
+            # Fall back to simple reflection in case of error
+            return self._reflect_fallback(character_id, context)
+    
+    def _reflect_fallback(self, character_id: str, context: str) -> List[Tuple[str, float]]:
+        """Fallback reflection when LLM is unavailable: simple relevance estimation."""
         updates = []
         for rec in self.top_k(character_id):
-            delta = 0.1 if rec.sentiment >= 0 else -0.1
-            rec.weight = max(0.0, min(1.0, rec.weight + delta))
+            # Very simple relevance check - if any words in common, slightly increase weight
+            common_words = self._count_common_words(rec.event_text, context)
+            delta = min(0.1, common_words * 0.02)  # Max 0.1 increase for 5+ common words
+            
+            # Apply sentiment-based adjustments
+            if rec.sentiment < 0:
+                # Negative memories are weighted less unless highly relevant
+                delta -= 0.05
+            
+            # Apply the update
+            new_weight = max(0.0, min(1.0, rec.weight + delta))
+            rec.weight = new_weight
             rec.last_touched = datetime.now(timezone.utc)
             updates.append((rec.id, rec.weight))
         return updates
+        
+    def _count_common_words(self, text1: str, text2: str) -> int:
+        """Count common meaningful words between two texts."""
+        # Simple implementation - tokenize and find common words
+        words1 = set(w.lower() for w in text1.split() if len(w) > 3)
+        words2 = set(w.lower() for w in text2.split() if len(w) > 3)
+        return len(words1.intersection(words2))
+    
+    def _build_reflection_prompt(self, context: str, memories: List[MemoryRecord]) -> str:
+        """Build a prompt for the reflection LLM."""
+        prompt = """You are a memory reflection engine for an AI character. 
+        Analyze the relevance of each memory to the current conversation context.
+        For each memory, determine a new weight (0.0 to 1.0) based on:
+        1. Semantic relevance to the current context
+        2. Emotional significance (indicated by sentiment)
+        3. Previous weight (indicating prior importance)
+        
+        Output format: JSON array of objects with memory ID and new weight
+        Example: [{"id":"memory_id_1","newWeight":0.75},{"id":"memory_id_2","newWeight":0.3}]
+        
+        Current context: {context}
+        
+        Memories to evaluate:
+        """
+        
+        for i, memory in enumerate(memories):
+            prompt += f"\n{i+1}. ID: {memory.id} | Text: {memory.event_text} | Current weight: {memory.weight:.2f} | Sentiment: {memory.sentiment}"
+        
+        prompt += "\n\nAnalyze and return new weights as JSON."
+        return prompt
+    
+    def _parse_reflection_response(self, response: str, memories: List[MemoryRecord]) -> List[Tuple[str, float]]:
+        """Parse LLM response and extract memory weight updates."""
+        try:
+            import json
+            import re
+            
+            # Look for JSON array in the response
+            match = re.search(r'\[\s*{.*}\s*\]', response, re.DOTALL)
+            if match:
+                json_str = match.group(0)
+                updates_data = json.loads(json_str)
+                
+                updates = []
+                for update in updates_data:
+                    memory_id = update.get("id")
+                    new_weight = update.get("newWeight")
+                    
+                    if memory_id and isinstance(new_weight, (int, float)):
+                        # Ensure weight is in valid range
+                        new_weight = max(0.0, min(1.0, float(new_weight)))
+                        updates.append((memory_id, new_weight))
+                
+                return updates
+            
+            # Fallback if no JSON found: simple relevance-based update
+            print("No valid JSON found in reflection response, using fallback")
+            return [(m.id, m.weight) for m in memories]  # No changes
+            
+        except Exception as e:
+            print(f"Error parsing reflection response: {e}")
+            return [(m.id, m.weight) for m in memories]  # No changes
+    
+    def _apply_memory_updates(self, updates: List[Tuple[str, float]]) -> None:
+        """Apply updates to memory weights."""
+        now = datetime.now(timezone.utc)
+        for memory_id, new_weight in updates:
+            self.update(memory_id, weight=new_weight, last_touched=now)
+            
+    # For backwards compatibility
+    def reflect_stub(self, character_id: str, context: str) -> List[Tuple[str, float]]:
+        """Legacy method, now redirects to reflect()."""
+        return self.reflect(character_id, context)
 
     # -------- prompt helper --------
     def prompt_segment(self, character_id: str, k: int = 3) -> str:
@@ -127,6 +846,209 @@ class MemoryManager:
             lines.append(f"• [{r.event_text}] (w={r.effective_weight():.2f})")
         return "\n".join(lines)
 
-    # -------- export --------
+    # -------- persistence --------
+    def _apply_forgiveness_amplification(self, character_id: str, new_sentiment: int) -> None:
+        """Apply forgiveness or amplification to existing memories based on new sentiment.
+        
+        When a new event arrives with opposite sentiment to existing memories,
+        reduce the weight of opposite sentiment memories (forgiveness) and
+        increase the weight of matching sentiment memories (amplification).
+        
+        Args:
+            character_id: ID of the character to apply updates for
+            new_sentiment: Sentiment value of the new event (-2 to +2)
+        """
+        if new_sentiment == 0:
+            return  # Neutral sentiment has no effect
+            
+        # Get active memories for this character
+        memories = self.all_active(character_id)
+        now = datetime.now(timezone.utc)
+        
+        for memory in memories:
+            # Skip memories with neutral sentiment
+            if memory.sentiment == 0:
+                continue
+                
+            # Check if memory sentiment matches or opposes new sentiment
+            if (memory.sentiment > 0 and new_sentiment > 0) or (memory.sentiment < 0 and new_sentiment < 0):
+                # Amplification: reinforce similar sentiment
+                delta = abs(new_sentiment) * 0.2
+                memory.weight = min(1.0, memory.weight + delta)
+                memory.last_touched = now
+            elif (memory.sentiment > 0 and new_sentiment < 0) or (memory.sentiment < 0 and new_sentiment > 0):
+                # Forgiveness: reduce opposite sentiment
+                delta = abs(new_sentiment) * 0.2
+                memory.weight = max(0.0, memory.weight - delta)
+                memory.last_touched = now
+    
     def to_dict(self) -> Dict[str, Dict]:
+        """Convert all memory records to a dictionary for serialization."""
         return {rid: asdict(r) for rid, r in self._records.items()}
+    
+    def get_default_filepath(self) -> str:
+        """Get default filepath for memories.
+        
+        Returns:
+            Default filepath for memories
+        """
+        return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'memories.json')
+        
+    def save_to_file(self, filepath: str) -> bool:
+        """Save all memory records to a JSON file.
+        
+        Args:
+            filepath: Path to the JSON file to save memories to
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            import os
+            import json
+            
+            # Create directory if it doesn't exist
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            # Convert to serializable format
+            serializable_records = {}
+            for rid, record in self._records.items():
+                rec_dict = asdict(record)
+                # Convert datetime objects to ISO format strings for JSON serialization
+                rec_dict['created_at'] = rec_dict['created_at'].isoformat()
+                rec_dict['last_touched'] = rec_dict['last_touched'].isoformat()
+                serializable_records[rid] = rec_dict
+            
+            # Write to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(serializable_records, f, indent=2, ensure_ascii=False)
+            
+            print(f"Saved {len(serializable_records)} memory records to {filepath}")
+            return True
+            
+        except Exception as e:
+            print(f"Error saving memory records to {filepath}: {e}")
+            return False
+    
+    @classmethod
+    def load_from_file(cls, filepath: str) -> 'MemoryManager':
+        """Load memory records from a JSON file.
+        
+        Args:
+            filepath: Path to the JSON file to load memories from
+            
+        Returns:
+            A new MemoryManager instance with loaded memories
+        """
+        try:
+            import json
+            
+            mm = cls()  # Create a new instance
+            
+            if not os.path.exists(filepath):
+                print(f"Memory file {filepath} does not exist, starting with empty memories")
+                return mm
+            
+            with open(filepath, 'r', encoding='utf-8') as f:
+                records_dict = json.load(f)
+            
+            # Convert the loaded data back to MemoryRecord objects
+            for rid, rec_dict in records_dict.items():
+                # Convert ISO format strings back to datetime objects
+                rec_dict['created_at'] = datetime.fromisoformat(rec_dict['created_at'])
+                rec_dict['last_touched'] = datetime.fromisoformat(rec_dict['last_touched'])
+                
+                # Create MemoryRecord object
+                mm._records[rid] = MemoryRecord(**rec_dict)
+            
+            print(f"Loaded {len(mm._records)} memory records from {filepath}")
+            return mm
+            
+        except Exception as e:
+            print(f"Error loading memory records from {filepath}: {e}")
+            return cls()  # Return empty manager on error
+    
+    def get_default_filepath(self) -> str:
+        """Get the default filepath for memory storage."""
+        import os
+        # Create data directory if it doesn't exist
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, "memories.json")
+
+    # ---------- Emotional weighting helpers ----------
+    
+    def _classify_category(self, text: str) -> str:
+        """Classify text into praise/insult/affection/other using regex word boundaries."""
+        tl = text.lower()
+        praise_kw = ['хорош', 'молодец', 'умниц', 'класс', 'классн', 'красив', 'прекрас', 'beautiful', 'люблю', 'great', 'love', 'amazing', 'awesome']
+        insult_kw = ['дурак', 'туп', 'ненавиж', 'hate', 'idiot', 'stupid', 'ужасн', 'урод', 'глуп', 'merde']
+        affection_kw = ['люблю', 'нравишься', 'обожаю', 'kiss', 'hug', 'целую', 'дорог', 'мила']
+
+        def _match(word_list):
+            for kw in word_list:
+                # match keyword as prefix with optional suffix (to catch классно/классная/класс)
+                pattern = rf"\b{re.escape(kw)}\w*\b"
+                if re.search(pattern, tl):
+                    return True
+            return False
+
+        if _match(insult_kw):
+            return 'insult'
+        if _match(praise_kw):
+            return 'praise'
+        if _match(affection_kw):
+            return 'affection'
+        return 'other'
+    
+    def _get_personal_factor(self, character_id: str, category: str) -> float:
+        return PERSONAL_SENSITIVITY.get(character_id, {}).get(category, 1.0)
+    
+    def _compute_novelty(self, character_id: str, text: str, window: int = 20) -> float:
+        """Compute novelty as 1 - max Jaccard similarity with recent memories."""
+        words = set(re.findall(r'\w+', text.lower()))
+        if not words:
+            return 1.0
+        recent = [r for r in self._records.values() if r.character_id == character_id]
+        recent = sorted(recent, key=lambda r: r.created_at, reverse=True)[:window]
+        max_sim = 0.0
+        for rec in recent:
+            rec_words = set(re.findall(r'\w+', rec.event_text.lower()))
+            if not rec_words:
+                continue
+            sim = len(words & rec_words) / len(words | rec_words)
+            if sim > max_sim:
+                max_sim = sim
+        return 1.0 - max_sim
+    
+    # ------------- Relationship persistence -------------
+    
+    def _load_relationships(self) -> Dict[str, Dict[str, float]]:
+        try:
+            if os.path.exists(self.relationship_path):
+                import json
+                with open(self.relationship_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    return {k: {kk: float(vv) for kk, vv in v.items()} for k, v in data.items()}
+        except Exception as e:
+            print(f"[MemoryManager] Error loading relationships: {e}")
+        return {}
+    
+    def _save_relationships(self):
+        try:
+            import json, os
+            os.makedirs(os.path.dirname(self.relationship_path), exist_ok=True)
+            with open(self.relationship_path, 'w', encoding='utf-8') as f:
+                json.dump(self.relationships, f)
+        except Exception as e:
+            print(f"[MemoryManager] Error saving relationships: {e}")
+    
+    def _update_relationship(self, character_id: str, category: str, significance: float, personal_factor: float):
+        delta = significance * 0.05 * personal_factor
+        current = self.relationships.get(character_id, {}).get(category, 0.0)
+        current += delta
+        current = max(-1.0, min(1.0, current))
+        if character_id not in self.relationships:
+            self.relationships[character_id] = {}
+        self.relationships[character_id][category] = current
+        self._save_relationships()

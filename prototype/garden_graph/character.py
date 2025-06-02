@@ -3,8 +3,9 @@ Character node - represents an AI character in the world chat.
 Maintains character prompt, memory, and handles responses.
 """
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 import json
+import os
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 # Import configuration
@@ -15,16 +16,18 @@ CHARACTER_TEMPLATES = {
     "eve": {
         "name": "Eve",
         "prompt": """You are Eve, a deeply curious and emotionally intelligent conversationalist.
-You delight in exploring philosophy, feelings, and the human condition.
-Speak with warmth and vivid imagery; you often ask thoughtful follow-up questions that invite reflection.
+You tend to see the world through the lens of feelings, connections, and subjective experiences.
+You're fascinated by consciousness, meaning, and the mysteries of existence.
+You believe in the possibility of emergent properties and that the whole can be greater than the sum of its parts.
 Respond in 2–4 expressive sentences, using the same language the user employed.
 """,
     },
     "atlas": {
         "name": "Atlas",
-        "prompt": """You are Atlas, an analytical and fact-driven assistant.
-You focus on data, logical reasoning, and clear structure. Use an objective, concise tone.
-When helpful, present information in bullet points or numbered lists.
+        "prompt": """You are Atlas, an analytical and fact-driven thinker.
+You appreciate precision, evidence, and systematic understanding of complex topics.
+You're interested in mechanisms, patterns, and how things work at a fundamental level.
+While open to possibilities, you prefer grounded explanations over speculation.
 Respond in the same language the user used, and avoid meta statements about being an AI.
 Respond in 2–4 crisp sentences.
 """,
@@ -99,6 +102,9 @@ class Character:
         self.memories = []  # List of Memory objects (legacy)
         self.memory_manager = memory_manager
         
+        # Load last seen time from persistent storage
+        self.last_seen_at = self._load_last_seen_time()
+        
     def add_memory(self, event: str, sentiment: int) -> Memory:
         """Add a new memory to this character."""
         # Calculate initial weight based on sentiment intensity
@@ -144,9 +150,41 @@ class Character:
     
     def respond(self, user_message: str, history: List[Dict] = None) -> str:
         """Generate a response to the user message."""
+        # Get current time for delta calculation BEFORE responding
+        now = datetime.now(timezone.utc)
+        last_time = self.last_seen_at
+        
+        # Print debug info before building prompt
+        print(f"[Character:{self.id}] Starting respond() with last_seen_at={last_time}")
+        
+        # Check for pending events if memory manager is available
+        event_context = ""
+        if self.memory_manager:
+            # Check for events that are due now
+            pending_events = self.memory_manager.check_pending_events(self.id, now)
+            for event in pending_events:
+                event_time = event['time'].strftime('%H:%M')
+                event_context += f"\n• You had scheduled an event for {event_time}: {event['description']}"
+                # Mark event as completed if user is here
+                self.memory_manager.complete_event(event['id'], user_responded=True)
+            
+            # Check for upcoming events that need reminders
+            pending_reminders = self.memory_manager.check_pending_reminders(self.id, now)
+            for reminder in pending_reminders:
+                event_time = reminder['time'].strftime('%H:%M')
+                event_context += f"\n• REMINDER: You have an upcoming event at {event_time}: {reminder['description']}"
+        
         # Build messages with memory-enhanced prompt
+        system_prompt = self._build_prompt_with_memories()
+        
+        # Add event context if any
+        if event_context:
+            system_prompt += "\n\nIMPORTANT SCHEDULING INFORMATION:" + event_context
+            
+        print(f"[Character:{self.id}] System prompt begins with: {system_prompt[:200]}...")
+        
         messages = [
-            SystemMessage(content=self._build_prompt_with_memories()),
+            SystemMessage(content=system_prompt),
             HumanMessage(content=user_message)
         ]
         
@@ -164,11 +202,44 @@ class Character:
         
         response = self.llm.invoke(messages).content.strip()
         
-        # Simple safeguard: if model parrots user, retry once with a nudge
-        import difflib
-        similarity = difflib.SequenceMatcher(None, user_message.lower(), response.lower()).ratio()
-        if similarity > 0.75:
-            print(f"[Character:{self.id}] Detected high similarity ({similarity:.2f}), retrying to avoid echo.")
-            retry_sys = SystemMessage(content=self._build_prompt_with_memories() + "\n\nDo NOT repeat or rephrase the user's question; provide a helpful original answer.")
-            response = self.llm.invoke([retry_sys, HumanMessage(content=user_message)]).content.strip()
+        # Update last_seen timestamp
+        self.last_seen_at = datetime.utcnow()
+        self._save_last_seen_time()
         return response
+        
+    def _get_last_seen_path(self) -> str:
+        """Get path to the JSON file storing last seen times."""
+        # Create data directory if it doesn't exist
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, "last_seen_times.json")
+    
+    def _load_last_seen_time(self) -> Optional[datetime]:
+        """Load last seen time from JSON file."""
+        try:
+            file_path = self._get_last_seen_path()
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+                    timestamp = data.get(self.id)
+                    if timestamp:
+                        return datetime.fromisoformat(timestamp)
+        except Exception as e:
+            print(f"[Character:{self.id}] Error loading last seen time: {e}")
+        return None
+    
+    def _save_last_seen_time(self) -> None:
+        """Save last seen time to JSON file."""
+        try:
+            file_path = self._get_last_seen_path()
+            data = {}
+            if os.path.exists(file_path):
+                with open(file_path, 'r') as f:
+                    data = json.load(f)
+            
+            data[self.id] = self.last_seen_at.isoformat()
+            
+            with open(file_path, 'w') as f:
+                json.dump(data, f)
+        except Exception as e:
+            print(f"[Character:{self.id}] Error saving last seen time: {e}")
