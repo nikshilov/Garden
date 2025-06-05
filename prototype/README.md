@@ -9,6 +9,7 @@ A prototype implementation of a multi-character chat system using LangGraph, sup
 - **Character Nodes**: Individual AI characters with memory
 - **Memory Management**: Comprehensive memory system with persistence and reflection
 - **Time-Aware**: Characters acknowledge time gaps between conversations
+- **Semantic Emotional Memory**: 11-dimensional emotions and 10-axis relationship model (P2 Memory Core)
 - **Cost Tracking**: Tracks token usage and costs across providers
 - **Configuration**: Easy setup via environment variables
 - **CLI Interface**: Test the system from the command line

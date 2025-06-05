@@ -8,5 +8,15 @@
     "completed": true,
     "user_responded": true,
     "created_at": "2025-06-01T16:50:07.069247+00:00"
+  },
+  "66d343bf-4c7b-42f6-9fd5-4b794e780bd8": {
+    "id": "66d343bf-4c7b-42f6-9fd5-4b794e780bd8",
+    "character_id": "eve",
+    "event_time": "2025-06-02T05:00:29.299216+00:00",
+    "description": "Привет! Давай через 5 минут пойдем на свидание? Ев?",
+    "reminder_time": "2025-06-02T04:55:29.299216+00:00",
+    "completed": true,
+    "user_responded": true,
+    "created_at": "2025-06-02T17:12:12.089925+00:00"
   }
 }

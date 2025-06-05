@@ -99,5 +99,17 @@ CI | Xcode Cloud | Run unit + UI tests, build → TestFlight
 • API keys stored in iOS Keychain & never synced.
 • Character import JSON signed with ECDSA to prevent malicious code.
 
+## Context Management (Long Chats)
+The active prompt is kept small via a **4-layer hierarchy**:
+1. Short-term window (recent 10–20 turns)
+2. Episodic summaries (TL;DR of scrolled messages, see [docs/long_context.md])
+3. Semantic memory records (vector + weight decay)
+4. Persona / system instructions
+
+`DialogManager` slides the window → summarizer → `EpisodicStore`.
+During prompt assembly it merges _short-term_ + top-K (episodic ∪ semantic).
+
+See [long_context.md](long_context.md) for full algorithm.
+
 ---
 *(Last updated: 2025-05-21)*

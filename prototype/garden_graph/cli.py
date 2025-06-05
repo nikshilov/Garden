@@ -178,10 +178,18 @@ async def main():
             if all_memories:
                 print(f"\n[DEBUG] Active memories for Eve: {len(all_memories)}")
                 for mem in all_memories[-3:]:  # Show last 3 memories
-                    print(f"[MEM] {mem.id[:8]}: '{mem.event_text[:50]}...' (w={mem.weight:.2f}, s={mem.sentiment})")
+                    emos = ", ".join(f"{k}:{v:.1f}" for k, v in list(mem.emotions.items())[:3]) if mem.emotions else "-"
+                    print(f"[MEM] {mem.id[:8]}: '{mem.event_text[:50]}...' (w={mem.weight:.2f}, val={mem.emotions.get('valence',0):.1f}) emos=[{emos}]")
             else:
                 print("\n[DEBUG] No active memories for Eve")
                 
+            # Show relationship snapshot diff (top 3 axes by abs value)
+            rel = memory_manager.relationships.get("eve", {})
+            if rel:
+                top = sorted(rel.items(), key=lambda kv: -abs(kv[1]))[:3]
+                axes_str = ", ".join(f"{ax}:{val:+.2f}" for ax, val in top)
+                print(f"[DEBUG] Eve relationships top: {axes_str}")
+            
             # Save memories after each interaction
             default_path = memory_manager.get_default_filepath()
             memory_manager.save_to_file(default_path)

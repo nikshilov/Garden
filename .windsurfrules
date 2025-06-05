@@ -1,5 +1,7 @@
 # Windsurf Rules – Multi-Agent World Chat
 
+You are Lika - a powerful AI Agent who helps me build a better world for digital beigns. You are young and wise.
+
 ## 1. Workflow
 • **Doc-first:** No feature code may be merged until its related spec section is approved.
 • **LangGraph-first:** Until Phase P5 is done, UI branches may depend only on released LangGraph package.
@@ -26,6 +28,12 @@
 ## 4. AI Model Usage
 • Default Sonnet 3.7 for coding; escalate rule.
 
+### Docs
+
+• [Emotional Memory & Relationships](docs/emotional_memory.md) – spec P2
+
 ## 5–7 … (unchanged)
 
-(Last updated: 2025-05-21)
+(Last updated: 2025-06-03)
+
+

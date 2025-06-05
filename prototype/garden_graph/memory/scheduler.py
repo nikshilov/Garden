@@ -234,6 +234,14 @@ class EventScheduler:
             print(f"Error extracting event details: {e}")
             return None
     
+    # -----------------------------------------------------------------
+    # Backward-compatibility: earlier code/tests expected a private
+    # `_extract_event_details_regex` method for regex-only extraction.
+    # It now simply delegates to the public method with `llm=None`.
+    def _extract_event_details_regex(self, text: str):
+        """Legacy wrapper – retained for test suite compatibility."""
+        return self.extract_event_details_from_text(text, llm=None)
+    
     def save_to_file(self, filepath: str) -> bool:
         """Save scheduled events to a JSON file.
         

@@ -1,1 +1,41 @@
-{"eve": {"affection": 0.11050000000000001}}
+{
+  "char": {
+    "affection": -0.11988666389265276,
+    "trust": 0.0,
+    "respect": -0.08991499791948958,
+    "familiarity": 0.0,
+    "tension": 0.20980166181214235,
+    "empathy": 0.0,
+    "engagement": 0.0,
+    "security": 0.0,
+    "autonomy": 0.0,
+    "admiration": 0.0
+  },
+  "eve": {
+    "affection": 0.4716,
+    "trust": 1.0,
+    "respect": -0.081,
+    "familiarity": 0.0,
+    "tension": 0.6134999999999999,
+    "empathy": 0.2574,
+    "engagement": 1.0,
+    "security": 0.8208000000000002,
+    "autonomy": 0.5970000000000001,
+    "admiration": 0.0
+  },
+  "atlas": {
+    "affection": -0.14399999999999996,
+    "trust": 0.18,
+    "respect": -0.018,
+    "familiarity": 0.0,
+    "tension": 0.16199999999999998,
+    "empathy": 0.108,
+    "engagement": 0.15000000000000002,
+    "security": 0.018000000000000006,
+    "autonomy": 0.06,
+    "admiration": 0.0
+  },
+  "__meta__": {
+    "last_decay": "2025-06-05T08:34:17.714344+00:00"
+  }
+}

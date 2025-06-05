@@ -6,11 +6,14 @@ UUID.  Easy to unit-test and can be swapped for persistent storage later.
 from __future__ import annotations
 
 import uuid, math, re, os, json
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
+import math
 
 from .scheduler import EventScheduler
+from .reflection import ReflectionManager
+from pathlib import Path
 
 DECAY_LAMBDA = 0.05        # ≈ half-life 13.9 days
 MIN_ACTIVE_WEIGHT = 0.05   # below this we archive
@@ -23,6 +26,37 @@ PERSONAL_SENSITIVITY = {
 
 RELATIONSHIP_DECAY = 0.0005  # daily passive decay toward 0
 
+# Meta key in relationships.json to store housekeeping info
+_REL_META_KEY = "__meta__"
+
+# --- Relationship axes configuration ---
+RELATIONSHIP_AXES = [
+    "affection", "trust", "respect", "familiarity", "tension",
+    "empathy", "engagement", "security", "autonomy", "admiration"
+]
+
+# Mapping from message category to relationship axes (coarse fallback)
+CATEGORY_AXIS_WEIGHTS = {
+    "praise": {"affection": 0.4, "respect": 0.4, "admiration": 0.3},
+    "insult": {"tension": 0.6, "affection": -0.4, "respect": -0.4},
+    "affection": {"affection": 0.5, "empathy": 0.3, "trust": 0.3},
+    "important fact": {"familiarity": 0.4},
+}
+
+# Fine-grained mapping from Plutchik emotions to axes
+EMOTION_AXIS_WEIGHTS = {
+    "joy": {"affection": 0.4, "engagement": 0.2},
+    "trust": {"trust": 0.6, "security": 0.3},
+    "fear": {"tension": 0.5, "security": -0.3},
+    "surprise": {"engagement": 0.4},
+    "sadness": {"affection": -0.4, "empathy": 0.3},
+    "disgust": {"tension": 0.5, "affection": -0.4},
+    "anger": {"tension": 0.7, "respect": -0.3, "affection": -0.4},
+    "anticipation": {"engagement": 0.3, "autonomy": 0.2},
+}
+
+# decay rate for memory weight per day (used in MemoryRecord.effective_weight)
+WEIGHT_DECAY = 0.02  # 2% per day exponential
 
 @dataclass
 class MemoryRecord:
@@ -35,13 +69,16 @@ class MemoryRecord:
     created_at: datetime
     last_touched: datetime
     archived: bool = False
+    emotions: Dict[str, float] = field(default_factory=dict)  # multi-vector emotion intensities
 
     # ------- helpers -------
-    def effective_weight(self, now: Optional[datetime] = None) -> float:
-        """Compute w(t) = w0 * exp(-λ·Δdays)."""
-        now = now or datetime.now(timezone.utc)
-        days = (now - self.last_touched).total_seconds() / 86_400.0
-        return self.weight * math.exp(-DECAY_LAMBDA * days)
+    def effective_weight(self) -> float:
+        """Return weight after applying exponential decay since last_touched."""
+        now = datetime.now(timezone.utc)
+        days = (now - self.last_touched).total_seconds() / 86400.0
+        if days <= 0:
+            return self.weight
+        return self.weight * math.exp(-WEIGHT_DECAY * days)
 
 
 def _initial_weight(sentiment: int, user_flag: bool = False) -> float:
@@ -221,6 +258,39 @@ class MemoryManager:
         # --- Relationship tracking ---
         self.relationship_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'relationships.json')
         self.relationships = self._load_relationships()
+        
+        # Apply passive decay once at init (will update save later)
+        self._apply_passive_decay()
+        
+        # --- Load existing memories from file (if any) ---
+        if self.memories_path and os.path.exists(self.memories_path):
+            try:
+                import json
+                with open(self.memories_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    for rec_id, rec_data in data.items():
+                        try:
+                            self._records[rec_id] = MemoryRecord(
+                                id=rec_id,
+                                character_id=rec_data["character_id"],
+                                event_text=rec_data["event_text"],
+                                weight=float(rec_data.get("weight", 0.1)),
+                                sentiment=int(rec_data.get("sentiment", 0)),
+                                sentiment_label=rec_data.get("sentiment_label", "neutral"),
+                                emotions=rec_data.get("emotions", {}),
+                                created_at=datetime.fromisoformat(rec_data["created_at"]),
+                                last_touched=datetime.fromisoformat(rec_data.get("last_touched", rec_data["created_at"])),
+                                archived=bool(rec_data.get("archived", False)),
+                            )
+                        except Exception as e:
+                            print(f"[MemoryManager] Error loading record {rec_id}: {e}")
+                print(f"[MemoryManager] Loaded {len(self._records)} memories from file")
+            except Exception as e:
+                print(f"[MemoryManager] Failed to load existing memories: {e}")
+        
+        # ------------ reflection manager ------------
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
+        self.reflection_mgr = ReflectionManager(Path(data_dir))
     
     # ---------------- Memory Creation from Messages ----------------
     
@@ -373,33 +443,39 @@ class MemoryManager:
             print(f"[MemoryManager] Error creating scheduled event: {e}")
             return None
     
-    def _analyze_message_llm(self, character_id: str, text: str, llm=None) -> Tuple[float, str]:
+    def _analyze_message_llm(self, character_id: str, text: str, llm=None) -> Tuple[float, str, Dict[str, float]]:
         """Analyze message using LLM to determine emotional significance and category.
         
         Args:
             character_id: ID of the character who would receive this memory
             text: Text to analyze
-            llm: Optional LLM to use for analysis (will use default if None)
+            llm: Optional LLM to use for analysis
             
         Returns:
-            Tuple of (significance, category)
+            Tuple of (significance, category, emotions)
             - significance: float from -2.0 to 2.0 representing emotional impact
             - category: string categorization (praise, insult, affection, important fact, general, other)
+            - emotions: dictionary of emotions with intensities (0.0 to 1.0)
         """
         # Simplified system prompt for mini model
-        system_prompt = """Analyze the following message to determine:
-1. Emotional significance (scale -10 to +10) where:
-   - Negative values indicate negative emotional impact (insults, criticism, etc.)
-   - Positive values indicate positive emotional impact (praise, affection, etc.)
-   - The absolute value indicates intensity (0=neutral, ±10=extremely strong)
-2. Category (choose one): praise, insult, affection, important fact, general, other
-3. Brief explanation
-
-Respond in JSON format:
+        system_prompt = """Analyze the following message.
+Return JSON with:
 {
-    "significance": <float>,
-    "category": "<category>",
-    "explanation": "<brief reason>"
+  "significance": float   // -10 .. 10 overall emotional strength (positive=pleasant, negative=unpleasant)
+  "category": "praise|insult|affection|important fact|general|other",
+  "emotions": {           // intensities 0..1 for each key below
+      "joy": 0.0,
+      "trust": 0.0,
+      "fear": 0.0,
+      "surprise": 0.0,
+      "sadness": 0.0,
+      "disgust": 0.0,
+      "anger": 0.0,
+      "anticipation": 0.0,
+      "valence": 0.0,     // -1 .. 1
+      "arousal": 0.0,     // 0 ..1
+      "dominance": 0.0    // -1 .. 1
+  }
 }"""
         
         user_prompt = f"Message to analyze: '{text}'"
@@ -441,14 +517,16 @@ Respond in JSON format:
             
             print(f"[MemoryManager] LLM analysis: {result}")
             
-            return normalized_significance, result["category"]
+            emotions_map = result.get("emotions", {}) if isinstance(result.get("emotions", {}), dict) else {}
+            return normalized_significance, result["category"], emotions_map
+
         except Exception as e:
             print(f"[MemoryManager] LLM analysis failed: {e}")
             # Fall back to simpler analysis method
             category = self._classify_category(text)
             sentiment = _analyze_sentiment(text, llm=llm, character_id=character_id)
-            return float(sentiment), category
-
+            return float(sentiment), category, {}
+    
     def analyze_message(self, character_id: str, message: str, is_user_message: bool = True, llm=None) -> Optional[str]:
         """Analyze a message and create a memory if it's significant.
         
@@ -499,7 +577,7 @@ Respond in JSON format:
                 memory_command = True  # Force memory creation for scheduled events
         
         # Use LLM to analyze message significance and category
-        significance, category = self._analyze_message_llm(character_id, memory_text, llm)
+        significance, category, emotions_map = self._analyze_message_llm(character_id, memory_text, llm)
         
         # Convert floating point significance to integer sentiment for compatibility
         sentiment = int(round(significance))
@@ -535,12 +613,13 @@ Respond in JSON format:
                 event_text=summary[:500],  # Enforce maximum length
                 sentiment=sentiment,
                 sentiment_label=category,
+                emotions=emotions_map,
                 user_flag=memory_command,
                 weight_override=weight
             )
             
             # Update relationship score
-            self._update_relationship(character_id, category, significance, personal_factor)
+            self._update_relationship(character_id, emotions_map, category, significance, personal_factor)
             
             return memory.id
             
@@ -631,7 +710,7 @@ Respond in JSON format:
         return created_memories
 
     # ---------------- CRUD ----------------
-    def create(self, *, character_id: str, event_text: str, sentiment: int, sentiment_label: str, user_flag: bool = False, weight_override: float = None) -> MemoryRecord:
+    def create(self, *, character_id: str, event_text: str, sentiment: int, sentiment_label: str, emotions: Dict[str, float] | None = None, user_flag: bool = False, weight_override: float = None) -> MemoryRecord:
         rec_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         if weight_override is not None:
@@ -648,9 +727,18 @@ Respond in JSON format:
             sentiment_label=sentiment_label,
             created_at=now,
             last_touched=now,
+            archived=False,
+            emotions=emotions or {},
         )
         self._records[rec_id] = rec
         self._enforce_cap(character_id)
+        if self.memories_path:
+            self.save_to_file(self.memories_path)
+
+        # Update reflection counters
+        self.reflection_mgr.on_new_memory(character_id)
+        top = self.top_k(character_id, k=5)
+        self.reflection_mgr.maybe_reflect(character_id, top)
         return rec
 
     def get(self, rec_id: str) -> Optional[MemoryRecord]:
@@ -677,7 +765,7 @@ Respond in JSON format:
 
     def top_k(self, character_id: str, k: int = 3) -> List[MemoryRecord]:
         now = datetime.now(timezone.utc)
-        return sorted(self.all_active(character_id), key=lambda r: r.effective_weight(now), reverse=True)[:k]
+        return sorted(self.all_active(character_id), key=lambda r: r.effective_weight(), reverse=True)[:k]
 
     # ------------ decay & cap ------------
     def decay_all(self) -> None:
@@ -685,7 +773,7 @@ Respond in JSON format:
         for rec in self._records.values():
             if rec.archived:
                 continue
-            if rec.effective_weight(now) < MIN_ACTIVE_WEIGHT:
+            if rec.effective_weight() < MIN_ACTIVE_WEIGHT:
                 rec.archived = True
 
     def _enforce_cap(self, character_id: str, cap: int = 200) -> None:
@@ -838,13 +926,21 @@ Respond in JSON format:
 
     # -------- prompt helper --------
     def prompt_segment(self, character_id: str, k: int = 3) -> str:
+        segments = []
         recs = self.top_k(character_id, k)
-        if not recs:
-            return ""
-        lines = ["Relevant memories:"]
-        for r in recs:
-            lines.append(f"• [{r.event_text}] (w={r.effective_weight():.2f})")
-        return "\n".join(lines)
+        if recs:
+            segments.append("Relevant memories:")
+            for r in recs:
+                segments.append(f"• [{r.event_text}] (w={r.effective_weight():.2f})")
+        
+        # add reflections
+        refl = self.reflection_mgr.last_summaries(character_id, 3)
+        if refl:
+            segments.append("")
+            segments.append("REFLECTIONS:")
+            segments.extend(f"• {s}" for s in refl)
+        
+        return "\n".join(segments)
 
     # -------- persistence --------
     def _apply_forgiveness_amplification(self, character_id: str, new_sentiment: int) -> None:
@@ -956,7 +1052,7 @@ Respond in JSON format:
             for rid, rec_dict in records_dict.items():
                 # Convert ISO format strings back to datetime objects
                 rec_dict['created_at'] = datetime.fromisoformat(rec_dict['created_at'])
-                rec_dict['last_touched'] = datetime.fromisoformat(rec_dict['last_touched'])
+                rec_dict['last_touched'] = datetime.fromisoformat(rec_dict.get("last_touched", rec_dict["created_at"]))
                 
                 # Create MemoryRecord object
                 mm._records[rid] = MemoryRecord(**rec_dict)
@@ -1023,32 +1119,105 @@ Respond in JSON format:
     
     # ------------- Relationship persistence -------------
     
+    def _ensure_axis_defaults(self, rel_dict: Dict[str, float]):
+        for axis in RELATIONSHIP_AXES:
+            rel_dict.setdefault(axis, 0.0)
+        return rel_dict
+    
     def _load_relationships(self) -> Dict[str, Dict[str, float]]:
         try:
             if os.path.exists(self.relationship_path):
                 import json
-                with open(self.relationship_path, 'r', encoding='utf-8') as f:
+                with open(self.relationship_path, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                    return {k: {kk: float(vv) for kk, vv in v.items()} for k, v in data.items()}
+                    last_decay_ts_str = None
+                    if _REL_META_KEY in data and isinstance(data[_REL_META_KEY], dict):
+                        last_decay_ts_str = data[_REL_META_KEY].get("last_decay")
+                        del data[_REL_META_KEY]
+                    
+                    out = {}
+                    for char_id, axes in data.items():
+                        # legacy scalar format -> wrap into dict
+                        if isinstance(axes, (int, float)):
+                            axes = {"affection": float(axes)}
+                        out[char_id] = self._ensure_axis_defaults({k: float(v) for k, v in axes.items()})
+                    
+                    # store meta timestamp
+                    if last_decay_ts_str:
+                        try:
+                            self._last_decay_ts = datetime.fromisoformat(last_decay_ts_str)
+                        except Exception:
+                            self._last_decay_ts = None
+                    else:
+                        self._last_decay_ts = None
+                    
+                    return out
         except Exception as e:
             print(f"[MemoryManager] Error loading relationships: {e}")
         return {}
     
     def _save_relationships(self):
         try:
-            import json, os
-            os.makedirs(os.path.dirname(self.relationship_path), exist_ok=True)
-            with open(self.relationship_path, 'w', encoding='utf-8') as f:
-                json.dump(self.relationships, f)
+            import json, pathlib
+            pathlib.Path(self.relationship_path).parent.mkdir(parents=True, exist_ok=True)
+            
+            # include meta key
+            to_dump = dict(self.relationships)
+            to_dump[_REL_META_KEY] = {"last_decay": getattr(self, "_last_decay_ts", datetime.now(timezone.utc)).isoformat()}
+            
+            with open(self.relationship_path, "w", encoding="utf-8") as f:
+                json.dump(to_dump, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"[MemoryManager] Error saving relationships: {e}")
     
-    def _update_relationship(self, character_id: str, category: str, significance: float, personal_factor: float):
-        delta = significance * 0.05 * personal_factor
-        current = self.relationships.get(character_id, {}).get(category, 0.0)
-        current += delta
-        current = max(-1.0, min(1.0, current))
+    def _update_relationship(self, character_id: str, emotions: Dict[str, float], category: str, significance: float, personal_factor: float):
+        # Start with fine-grained emotion mapping
+        scaled_deltas: Dict[str, float] = {}
+        for emo, intensity in emotions.items():
+            weights = EMOTION_AXIS_WEIGHTS.get(emo, {})
+            for axis, w in weights.items():
+                scaled_deltas[axis] = scaled_deltas.get(axis, 0.0) + intensity * w * personal_factor * 0.3
+
+        # Fallback / additional category-based deltas
+        if not scaled_deltas:
+            cat_weights = CATEGORY_AXIS_WEIGHTS.get(category, {})
+            for axis, w in cat_weights.items():
+                scaled_deltas[axis] = scaled_deltas.get(axis, 0.0) + significance * w * personal_factor * 0.1
+
+        if not scaled_deltas:
+            return
+
         if character_id not in self.relationships:
-            self.relationships[character_id] = {}
-        self.relationships[character_id][category] = current
+            self.relationships[character_id] = {axis: 0.0 for axis in RELATIONSHIP_AXES}
+        rel = self.relationships[character_id]
+        self._ensure_axis_defaults(rel)
+        for axis, delta in scaled_deltas.items():
+            rel[axis] = max(-1.0, min(1.0, rel.get(axis, 0.0) + delta))
+        self._save_relationships()
+
+    # ---------------- passive decay --------------------
+    def _apply_passive_decay(self):
+        """Decay relationship axes toward 0 based on time elapsed since last decay."""
+        now = datetime.now(timezone.utc)
+        last_ts = getattr(self, "_last_decay_ts", None)
+        if last_ts is None:
+            # first run, set timestamp but don't decay
+            self._last_decay_ts = now
+            return
+        
+        hours = (now - last_ts).total_seconds() / 3600.0
+        if hours <= 0.01:
+            return
+        
+        decay_factor = RELATIONSHIP_DECAY * (hours / 24.0)
+        if decay_factor <= 0:
+            return
+        
+        for char_id, axes in self.relationships.items():
+            for axis in RELATIONSHIP_AXES:
+                val = axes.get(axis, 0.0)
+                axes[axis] = val * (1.0 - decay_factor)
+        
+        self._last_decay_ts = now
+        # Immediately save to persist updated values
         self._save_relationships()
