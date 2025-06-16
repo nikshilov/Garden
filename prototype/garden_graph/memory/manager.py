@@ -18,6 +18,9 @@ from .scheduler import EventScheduler
 from .reflection import ReflectionManager
 from pathlib import Path
 
+# Supervisor
+from garden_graph.supervisor import Supervisor
+
 DECAY_LAMBDA = 0.05        # ≈ half-life 13.9 days
 MIN_ACTIVE_WEIGHT = 0.05   # below this we archive
 
@@ -294,6 +297,9 @@ class MemoryManager:
         # ------------ reflection manager ------------
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
         self.reflection_mgr = ReflectionManager(Path(data_dir))
+
+        # Supervisor/producer
+        self.supervisor = Supervisor(self)
     
     # ---------------- Memory Creation from Messages ----------------
     
@@ -623,6 +629,13 @@ Return JSON with:
             
             # Update relationship score
             self._update_relationship(character_id, emotions_map, category, significance, personal_factor)
+
+            # Supervisor: maybe suggest prompt refresh
+            try:
+                if self.supervisor.maybe_schedule_prompt_refresh(character_id):
+                    print("[MemoryManager] Supervisor scheduled prompt-refresh suggestion event")
+            except Exception as e:
+                print(f"[MemoryManager] Supervisor error: {e}")
             
             return memory.id
             

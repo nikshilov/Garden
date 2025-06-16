@@ -29,6 +29,12 @@ MEM_SIGNIFICANCE_THRESHOLD = float(os.getenv("MEM_SIGNIFICANCE_THRESHOLD", "0.25
 # Threshold for applying forgiveness/amplification logic for existing memories.
 EMOTIONAL_IMPACT_THRESHOLD = float(os.getenv("EMOTIONAL_IMPACT_THRESHOLD", "0.5"))
 
+# --- Supervisor / Producer thresholds ---
+# Accumulated emotional 'energy' triggering prompt refresh suggestion
+PROMPT_REFRESH_ENERGY_THRESHOLD = float(os.getenv("PROMPT_REFRESH_ENERGY_THRESHOLD", "8.0"))
+# Significance at which evaluate_message suggests 'highlight'
+HIGHLIGHT_IMPACT_THRESHOLD = float(os.getenv("HIGHLIGHT_IMPACT_THRESHOLD", "1.0"))
+
 # Model Provider Mappings
 MODEL_PROVIDERS = {
     # OpenAI models
