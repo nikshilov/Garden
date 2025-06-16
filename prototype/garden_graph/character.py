@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 import json
 import os
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+from garden_graph.memory.episodic import EpisodicStore
+from garden_graph.summarizer import Summarizer
 
 # Import configuration
 from garden_graph.config import get_llm
@@ -101,6 +103,8 @@ class Character:
         self.base_prompt = template["prompt"]
         self.memories = []  # List of Memory objects (legacy)
         self.memory_manager = memory_manager
+        self.episodic_store = EpisodicStore()
+        self.short_term: List[Dict[str, str]] = []  # keeps last WINDOW_SIZE messages
         
         # Load last seen time from persistent storage
         self.last_seen_at = self._load_last_seen_time()
@@ -150,6 +154,17 @@ class Character:
     
     def respond(self, user_message: str, history: List[Dict] = None) -> str:
         """Generate a response to the user message."""
+        # append to short-term window
+        self.short_term.append({"role": "user", "content": user_message})
+        WINDOW_SIZE = EpisodicStore.WINDOW_SIZE
+        if len(self.short_term) > WINDOW_SIZE:
+            # pop oldest 8 messages for summarization
+            popped = self.short_term[:-WINDOW_SIZE]
+            self.short_term = self.short_term[-WINDOW_SIZE:]
+            tl_dr = Summarizer.instance().summarize(popped)
+            if tl_dr:
+                self.episodic_store.add(self.id, tl_dr)
+        
         # Get current time for delta calculation BEFORE responding
         now = datetime.now(timezone.utc)
         last_time = self.last_seen_at
@@ -176,6 +191,10 @@ class Character:
         
         # Build messages with memory-enhanced prompt
         system_prompt = self._build_prompt_with_memories()
+        # include episodic retrieval
+        epi_recs = self.episodic_store.search(self.id, user_message, k=3)
+        if epi_recs:
+            system_prompt += "\n\nRelevant summaries:" + "\n".join(f"• {r.summary}" for r in epi_recs)
         
         # Add event context if any
         if event_context:
@@ -185,6 +204,7 @@ class Character:
         
         messages = [
             SystemMessage(content=system_prompt),
+            *[HumanMessage(content=m["content"]) if m["role"]=="user" else AIMessage(content=m["content"]) for m in self.short_term[-5:]],
             HumanMessage(content=user_message)
         ]
         
@@ -201,6 +221,7 @@ class Character:
             messages = [messages[0]] + formatted_history + [messages[-1]]
         
         response = self.llm.invoke(messages).content.strip()
+        self.short_term.append({"role": "assistant", "content": response})
         
         # Update last_seen timestamp
         self.last_seen_at = datetime.utcnow()

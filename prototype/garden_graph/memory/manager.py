@@ -240,7 +240,7 @@ def _analyze_sentiment(text: str, llm=None, character_id: str = None) -> int:
 class MemoryManager:
     """Lightweight in-memory manager for the MVP."""
 
-    def __init__(self, memories_path: Optional[str] = None, events_path: Optional[str] = None) -> None:
+    def __init__(self, memories_path: Optional[str] = None, events_path: Optional[str] = None, *, autoload: bool = False) -> None:
         self._records: Dict[str, MemoryRecord] = {}
         
         # Default file paths
@@ -262,8 +262,8 @@ class MemoryManager:
         # Apply passive decay once at init (will update save later)
         self._apply_passive_decay()
         
-        # --- Load existing memories from file (if any) ---
-        if self.memories_path and os.path.exists(self.memories_path):
+        # --- Load existing memories from file (if any & autoload) ---
+        if autoload and self.memories_path and os.path.exists(self.memories_path):
             try:
                 import json
                 with open(self.memories_path, "r", encoding="utf-8") as f:
@@ -646,8 +646,8 @@ Return JSON with:
                 Concise summary:"""
                 
                 messages = [
-                    SystemMessage(content="You are a helpful assistant that creates concise summaries."),
-                    HumanMessage(content=prompt)
+                    SystemMessage(content=prompt),
+                    HumanMessage(content=text)
                 ]
                 
                 response = llm.invoke(messages)
@@ -710,7 +710,7 @@ Return JSON with:
         return created_memories
 
     # ---------------- CRUD ----------------
-    def create(self, *, character_id: str, event_text: str, sentiment: int, sentiment_label: str, emotions: Dict[str, float] | None = None, user_flag: bool = False, weight_override: float = None) -> MemoryRecord:
+    def create(self, *, character_id: str, event_text: str, sentiment: int, sentiment_label: str = "neutral", emotions: Dict[str, float] | None = None, user_flag: bool = False, weight_override: float = None) -> MemoryRecord:
         rec_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         if weight_override is not None:
@@ -843,6 +843,10 @@ Return JSON with:
             if rec.sentiment < 0:
                 # Negative memories are weighted less unless highly relevant
                 delta -= 0.05
+            
+            # Ensure positive memories always increase slightly if any relevance found
+            if common_words > 0 and rec.sentiment >= 0 and delta <= 0:
+                delta = 0.01
             
             # Apply the update
             new_weight = max(0.0, min(1.0, rec.weight + delta))
@@ -1037,33 +1041,35 @@ Return JSON with:
             A new MemoryManager instance with loaded memories
         """
         try:
-            import json
-            
-            mm = cls()  # Create a new instance
-            
+            import json, os
+            # Return empty manager if file doesn't exist
             if not os.path.exists(filepath):
                 print(f"Memory file {filepath} does not exist, starting with empty memories")
-                return mm
-            
+                return cls(memories_path=filepath, autoload=False)
+
+            # Create manager bound to this path (prevents auto-load of default memories)
+            mm = cls(memories_path=filepath, autoload=False)
+
             with open(filepath, 'r', encoding='utf-8') as f:
                 records_dict = json.load(f)
-            
-            # Convert the loaded data back to MemoryRecord objects
-            for rid, rec_dict in records_dict.items():
-                # Convert ISO format strings back to datetime objects
-                rec_dict['created_at'] = datetime.fromisoformat(rec_dict['created_at'])
-                rec_dict['last_touched'] = datetime.fromisoformat(rec_dict.get("last_touched", rec_dict["created_at"]))
-                
-                # Create MemoryRecord object
-                mm._records[rid] = MemoryRecord(**rec_dict)
-            
+
+            for rec_id, rec_data in records_dict.items():
+                # Ensure mandatory fields with fallbacks
+                rec_data.setdefault('sentiment_label', 'neutral')
+
+                # Convert ISO strings to datetimes
+                rec_data['created_at'] = datetime.fromisoformat(rec_data['created_at'])
+                rec_data['last_touched'] = datetime.fromisoformat(rec_data.get('last_touched', rec_data['created_at']))
+
+                mm._records[rec_id] = MemoryRecord(**rec_data)
+
             print(f"Loaded {len(mm._records)} memory records from {filepath}")
             return mm
-            
+
         except Exception as e:
             print(f"Error loading memory records from {filepath}: {e}")
-            return cls()  # Return empty manager on error
-    
+            return cls(autoload=False)  # Return empty manager on error
+
     def get_default_filepath(self) -> str:
         """Get the default filepath for memory storage."""
         import os

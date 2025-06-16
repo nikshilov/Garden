@@ -54,6 +54,11 @@ def create_world_chat_graph(
     # Define nodes
     def route_message(state: ChatState) -> Dict:
         """Router node decides which characters should respond."""
+        # If we already have a routing queue, skip re-routing (prevents duplicate routing on re-entry)
+        if state.get("active_characters"):
+            # No update – let remaining queue be processed
+            return {}
+        
         user_message = state["user_message"]
         history = state.get("message_history", [])
         
@@ -61,8 +66,9 @@ def create_world_chat_graph(
         active_chars = router.route(user_message, history)
         print(f"[Graph:route_message] Router selected: {active_chars}")
         
-        # Track character selections for analytics & display
-        state["selected_characters"] = set(active_chars)
+        # Track character selections for analytics & display (only first time)
+        if not state.get("selected_characters"):
+            state["selected_characters"] = set(active_chars)
         
         # Analyze message and create memories / schedule events
         if memory_manager and active_chars:
@@ -81,7 +87,11 @@ def create_world_chat_graph(
                 print(f"[Graph:route_message] Error saving memory state: {e}")
         
         # Update active characters in state
-        return {"active_characters": set(active_chars)}
+        # Return both the active queue and the original selection for downstream nodes
+        return {
+            "active_characters": set(active_chars),
+            "selected_characters": set(active_chars),
+        }
     
     def character_node(state: ChatState, character_id: str) -> Dict[str, Any]:
         """Character node generates a response for a specific character."""

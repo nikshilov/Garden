@@ -2,11 +2,18 @@
 Command-line interface to test the Garden world chat graph.
 """
 import os
-import sys
+import sys, pathlib
 import json
 from typing import Dict, List, Set
 import asyncio
 from datetime import datetime
+
+# Ensure project root (prototype directory) is on PYTHONPATH so that internal
+# absolute imports like `garden_graph.router` resolve when running this CLI
+# directly via `python cli.py`.
+ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
 
 from garden_graph.graph import create_world_chat_graph, format_cost_summary
 from garden_graph.cost_tracker import CostTracker
@@ -19,7 +26,7 @@ cost_tracker = CostTracker()
 print("Initializing memory manager...")
 # Пробуем загрузить существующую память, если файл не найден - создаем новый экземпляр
 try:
-    memory_manager = MemoryManager()
+    memory_manager = MemoryManager(autoload=True)
     default_path = memory_manager.get_default_filepath()
     print(f"Loading memories from {default_path}")
     if os.path.exists(default_path):
@@ -34,7 +41,7 @@ try:
     
 except Exception as e:
     print(f"Failed to initialize memory manager: {e}")
-    memory_manager = MemoryManager()
+    memory_manager = MemoryManager(autoload=True)
     print("Created new memory manager")
 
 # Enable memory debug mode
@@ -57,10 +64,10 @@ async def main():
     """Run the CLI demo."""
     # Initialize the chat graph
     graph = create_world_chat_graph(
-        router_model="gpt-3.5-turbo",
+        router_model="gpt-4o",
         character_models={
-            "eve": "gpt-3.5-turbo",
-            "atlas": "gpt-3.5-turbo"
+            "eve": "gpt-4o",
+            "atlas": "gpt-4o"
         },
         cost_tracker=cost_tracker,  # Pass the same cost tracker instance to the graph
         memory_manager=memory_manager

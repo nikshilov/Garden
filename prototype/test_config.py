@@ -21,7 +21,7 @@ def test_environment():
         print(f"{provider.upper()}: {status}")
     
     print("\nNote: At least one model provider API key is required.")
-    return any(env_vars.values())
+    assert any(env_vars.values())
 
 def test_model_loading():
     """Test loading different model providers."""

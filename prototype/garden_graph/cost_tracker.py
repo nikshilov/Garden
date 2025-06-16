@@ -15,6 +15,8 @@ DEFAULT_PRICING = {
     "gpt-4": {"prompt": 0.03, "completion": 0.06},
     "gpt-4-turbo": {"prompt": 0.01, "completion": 0.03},
     "gpt-4.1-turbo": {"prompt": 0.01, "completion": 0.03},
+    # Approximate pricing for GPT-4o (update if OpenAI publishes changes)
+    "gpt-4o": {"prompt": 0.005, "completion": 0.015},
     "claude-instant-1": {"prompt": 0.0008, "completion": 0.0024},
     "claude-2": {"prompt": 0.011, "completion": 0.032},
     "claude-3-sonnet": {"prompt": 0.008, "completion": 0.024}

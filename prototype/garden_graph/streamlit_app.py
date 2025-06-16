@@ -5,6 +5,15 @@ Run with: streamlit run streamlit_app.py
 import streamlit as st
 import asyncio
 import os
+import sys, pathlib
+
+# Ensure project root (prototype directory) is on PYTHONPATH so that internal
+# package imports like `garden_graph.router` work when running this script
+# directly via `streamlit run`.
+ROOT_DIR = pathlib.Path(__file__).resolve().parent.parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 from datetime import datetime
 import json
 
@@ -39,10 +48,10 @@ if "cost_tracker" not in st.session_state:
 if "graph" not in st.session_state:
     # Initialize the graph
     st.session_state.graph = create_world_chat_graph(
-        router_model="gpt-3.5-turbo",
+        router_model="gpt-4o",
         character_models={
-            "eve": "gpt-3.5-turbo",
-            "atlas": "gpt-3.5-turbo"
+            "eve": "gpt-4o",
+            "atlas": "gpt-4o"
         }
     )
 
@@ -53,22 +62,22 @@ st.sidebar.title("🌱 Garden Chat")
 st.sidebar.subheader("Character Models")
 router_model = st.sidebar.selectbox(
     "Router Model",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo"],
-    index=0
+    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o"],
+    index=3
 )
 
 # Eve model
 eve_model = st.sidebar.selectbox(
     "Eve's Model",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "claude-3-sonnet"],
-    index=0
+    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o", "claude-3-sonnet"],
+    index=3
 )
 
 # Atlas model
 atlas_model = st.sidebar.selectbox(
     "Atlas's Model",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "claude-3-sonnet"],
-    index=0
+    ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo", "gpt-4o", "claude-3-sonnet"],
+    index=3
 )
 
 # Budget settings
