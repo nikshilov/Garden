@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import uuid, math, re, os, json
 from dataclasses import dataclass, asdict, field
+
+# Configurable thresholds
+from garden_graph.config import MEM_SIGNIFICANCE_THRESHOLD, EMOTIONAL_IMPACT_THRESHOLD
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional, Tuple
 import math
@@ -585,7 +588,7 @@ Return JSON with:
         print(f"[MemoryManager] Analyzed importance: {significance:.2f} (cat={category}) for character {character_id}: '{memory_text[:30]}...'")
         
         # Create memory if it has any meaningful significance or was explicitly requested
-        if memory_command or abs(significance) > 0.2:  # Lower threshold to catch subtle emotional content
+        if memory_command or abs(significance) > MEM_SIGNIFICANCE_THRESHOLD:
             print(f"[MemoryManager] Creating memory with significance {significance:.2f} (command: {memory_command})")
             # Create a concise summary if it's too long
             if len(memory_text) > 200:
@@ -604,7 +607,7 @@ Return JSON with:
             weight = min(1.0, 0.1 + 0.3 * raw_score)
             
             # Apply forgiveness/amplification to existing memories before saving new one
-            if abs(significance) >= 0.5:  # Lower threshold for emotional impact
+            if abs(significance) >= EMOTIONAL_IMPACT_THRESHOLD:
                 self._apply_forgiveness_amplification(character_id, sentiment)
             
             # Then create the new memory with computed weight

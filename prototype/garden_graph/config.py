@@ -21,6 +21,14 @@ DISABLE_COST_TRACKING = os.getenv("DISABLE_COST_TRACKING", "false").lower() == "
 BUDGET_LIMIT = float(os.getenv("BUDGET_LIMIT", "1.0"))
 ROUTER_MODEL = os.getenv("ROUTER_MODEL", "gpt-3.5-turbo")
 
+# --- Memory / Emotion thresholds (configurable) ---
+# Minimum absolute significance score required to persist a message as a memory.
+# Default 0.25 (range 0‒1).  Lower = store more memories; higher = store fewer.
+MEM_SIGNIFICANCE_THRESHOLD = float(os.getenv("MEM_SIGNIFICANCE_THRESHOLD", "0.25"))
+
+# Threshold for applying forgiveness/amplification logic for existing memories.
+EMOTIONAL_IMPACT_THRESHOLD = float(os.getenv("EMOTIONAL_IMPACT_THRESHOLD", "0.5"))
+
 # Model Provider Mappings
 MODEL_PROVIDERS = {
     # OpenAI models
