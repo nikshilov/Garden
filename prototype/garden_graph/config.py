@@ -29,6 +29,12 @@ MEM_SIGNIFICANCE_THRESHOLD = float(os.getenv("MEM_SIGNIFICANCE_THRESHOLD", "0.25
 # Threshold for applying forgiveness/amplification logic for existing memories.
 EMOTIONAL_IMPACT_THRESHOLD = float(os.getenv("EMOTIONAL_IMPACT_THRESHOLD", "0.5"))
 
+# --- Persistence backend ---
+# 'json' (default) | 'supabase'
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "json").lower()
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
 # --- Supervisor / Producer thresholds ---
 # Accumulated emotional 'energy' triggering prompt refresh suggestion
 PROMPT_REFRESH_ENERGY_THRESHOLD = float(os.getenv("PROMPT_REFRESH_ENERGY_THRESHOLD", "8.0"))

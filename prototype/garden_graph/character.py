@@ -9,6 +9,7 @@ import os
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from garden_graph.memory.episodic import EpisodicStore
 from garden_graph.summarizer import Summarizer
+from garden_graph.mood import MoodState, generate_mood, AXIS_ADJECTIVE
 
 # Import configuration
 from garden_graph.config import get_llm
@@ -106,6 +107,8 @@ class Character:
         self.episodic_store = EpisodicStore()
         self.short_term: List[Dict[str, str]] = []  # keeps last WINDOW_SIZE messages
         
+        # ----- Mood state -----
+        self.mood: MoodState = self._load_or_generate_mood()
         # Load last seen time from persistent storage
         self.last_seen_at = self._load_last_seen_time()
         
@@ -133,16 +136,24 @@ class Character:
     
     def _build_prompt_with_memories(self) -> str:
         """Build full system prompt including relevant memories."""
+        # Mood line – mention dominant emotion if magnitude > 0.1
+        dominant_axis = max(self.mood.vector.items(), key=lambda kv: abs(kv[1]))
+        mood_prefix = ""
+        if abs(dominant_axis[1]) > 0.1:
+            adjective = AXIS_ADJECTIVE.get(dominant_axis[0], dominant_axis[0])
+            qualifier = "slightly " if abs(dominant_axis[1]) < 0.25 else ""
+            mood_prefix = f"Today you feel {qualifier}{adjective}.\n\n"
+
         # If external memory manager provided, defer to it
         if self.memory_manager is not None:
             mem_segment = self.memory_manager.prompt_segment(self.id)
             if mem_segment:
-                return self.base_prompt + "\n\n" + mem_segment
-            return self.base_prompt
+                return self.base_prompt + "\n\n" + mood_prefix + mem_segment
+            return self.base_prompt + "\n\n" + mood_prefix
         # Fallback to legacy in-object memory list
         top_memories = self.get_top_memories()
         
-        prompt = self.base_prompt + "\n\n"
+        prompt = self.base_prompt + "\n\n" + mood_prefix
         
         if top_memories:
             prompt += "Relevant memories:\n"
@@ -170,7 +181,7 @@ class Character:
         last_time = self.last_seen_at
         
         # Print debug info before building prompt
-        print(f"[Character:{self.id}] Starting respond() with last_seen_at={last_time}")
+        print(f"[Character:{self.id}] Starting respond() with last_seen_at={last_time}; mood_valence={self.mood.valence:+.2f}")
         
         # Check for pending events if memory manager is available
         event_context = ""
@@ -226,8 +237,78 @@ class Character:
         # Update last_seen timestamp
         self.last_seen_at = datetime.utcnow()
         self._save_last_seen_time()
+        # Save mood state periodically (in case it was regenerated)
+        self._save_mood_state()
         return response
         
+    # ---------------- Mood persistence helpers ----------------
+    def _get_mood_path(self) -> str:
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+        os.makedirs(data_dir, exist_ok=True)
+        return os.path.join(data_dir, "mood_states.json")
+
+    def _load_or_generate_mood(self) -> MoodState:
+        """Load mood from disk or create a new one for today."""
+        path = self._get_mood_path()
+        today = datetime.utcnow().date()
+        try:
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    entry = data.get(self.id)
+                    if entry:
+                        vec = entry["vector"]
+                        set_at = datetime.fromisoformat(entry["set_at"])
+                        # If same day – reuse, else generate new
+                        if set_at.date() == today:
+                            return MoodState(vector=vec, set_at=set_at)
+        except Exception as e:
+            print(f"[Character:{self.id}] Failed to load mood: {e}")
+        # Fallback – generate new based on average valence 0 for now
+        new_state = generate_mood()
+        # Persist & log
+        self._save_mood_state(new_state)
+        self._log_mood(new_state)
+        return new_state
+
+    def _log_mood(self, state: MoodState) -> None:
+        """Append mood snapshot to CSV log."""
+        log_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "mood_log.csv")
+        header_needed = not os.path.exists(log_path)
+        try:
+            import csv
+            with open(log_path, "a", newline="", encoding="utf-8") as f:
+                writer = csv.writer(f)
+                if header_needed:
+                    writer.writerow(["timestamp", "character", "dominant_axis", "valence", "arousal", "vector_json"])
+                dominant = max(state.vector.items(), key=lambda kv: abs(kv[1]))
+                writer.writerow([
+                    state.set_at.isoformat(),
+                    self.id,
+                    dominant[0],
+                    f"{state.vector.get('valence', 0.0):.3f}",
+                    f"{state.vector.get('arousal', 0.0):.3f}",
+                    json.dumps(state.vector, ensure_ascii=False)
+                ])
+        except Exception as e:
+            print(f"[Character:{self.id}] Failed to log mood: {e}")
+
+    def _save_mood_state(self, state: MoodState | None = None) -> None:
+        if state is None:
+            state = self.mood
+        path = self._get_mood_path()
+        try:
+            data = {}
+            if os.path.exists(path):
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            data[self.id] = {"vector": state.vector, "set_at": state.set_at.isoformat()}
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[Character:{self.id}] Failed to save mood: {e}")
+
+    # ---------------- Existing helpers ----------------
     def _get_last_seen_path(self) -> str:
         """Get path to the JSON file storing last seen times."""
         # Create data directory if it doesn't exist

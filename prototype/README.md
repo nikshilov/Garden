@@ -28,7 +28,12 @@ A prototype implementation of a multi-character chat system using LangGraph, sup
    pip install -r garden_graph/requirements.txt
    ```
 
-3. **Configure API keys**
+3. **Create .env**
+   Copy the provided template and fill in your keys **at the project root (`prototype/.env`)**:
+   ```bash
+   cp .env.example .env
+   # then edit .env with your favourite editor
+   ```
    Copy the example environment file and update with your API keys:
    ```bash
    cp garden_graph/.env.example garden_graph/.env
@@ -52,9 +57,9 @@ A prototype implementation of a multi-character chat system using LangGraph, sup
 
 ## 🔧 Configuration
 
-### Environment Variables
+### Environment Variables & Supabase
 
-Create a `.env` file in the `garden_graph` directory with your API keys:
+All configuration is loaded from `.env` located at *project root* (`prototype/.env`). The example template `.env.example` already lists every variable with sensible defaults. Common parameters:
 
 ```env
 # Required: At least one model provider API key
@@ -64,7 +69,8 @@ GOOGLE_API_KEY=your_google_key
 GROQ_API_KEY=your_groq_key
 OPENROUTER_API_KEY=your_openrouter_key
 
-# Optional settings
+# Optional settings (local JSON persistence)
+STORAGE_BACKEND=json
 DISABLE_COST_TRACKING=false
 BUDGET_LIMIT=1.0  # USD
 ROUTER_MODEL=gpt-3.5-turbo  # Model to use for routing
@@ -100,6 +106,13 @@ garden_graph/
 ├── streamlit_app.py    # Web interface
 └── requirements.txt    # Python dependencies
 ```
+
+## 🧑‍💻 Development Guidelines
+
+### Keep the CLI in Sync
+If you add or change features that should be accessible to users, **update `garden_graph/cli.py` and its `--help` output**. The rule of thumb is: _everything you can do via API should be invokable from the command line_. Make sure to add or adjust flags and extend the README accordingly.
+
+---
 
 ## 🧪 Testing
 

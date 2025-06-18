@@ -1,13 +1,13 @@
 {
-  "0aa57db0-3b9a-4916-a625-4fd7d281e86e": {
-    "id": "0aa57db0-3b9a-4916-a625-4fd7d281e86e",
+  "6b3c8057-bb5b-402a-ac9a-c3395366f112": {
+    "id": "6b3c8057-bb5b-402a-ac9a-c3395366f112",
     "character_id": "eve",
     "event_text": "dummy text",
     "weight": 0.25,
     "sentiment": 0,
     "sentiment_label": "test",
-    "created_at": "2025-06-16T16:54:54.834188+00:00",
-    "last_touched": "2025-06-16T16:54:54.834188+00:00",
+    "created_at": "2025-06-18T17:04:23.735715+00:00",
+    "last_touched": "2025-06-18T17:04:23.735715+00:00",
     "archived": false,
     "emotions": {}
   }

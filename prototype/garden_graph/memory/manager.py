@@ -10,12 +10,24 @@ from dataclasses import dataclass, asdict, field
 
 # Configurable thresholds
 from garden_graph.config import MEM_SIGNIFICANCE_THRESHOLD, EMOTIONAL_IMPACT_THRESHOLD
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 import math
 
 from .scheduler import EventScheduler
 from .reflection import ReflectionManager
+
+# storage backends
+from garden_graph.config import STORAGE_BACKEND, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+try:
+    from garden_graph.storage.supabase_repository import (
+        SupabaseMemoryRepo,
+        SupabaseEventRepo,
+    )
+except Exception:
+    SupabaseMemoryRepo = None  # type: ignore
+    SupabaseEventRepo = None  # type: ignore
+from collections import defaultdict
 from pathlib import Path
 
 # Supervisor
@@ -246,8 +258,19 @@ def _analyze_sentiment(text: str, llm=None, character_id: str = None) -> int:
 class MemoryManager:
     """Lightweight in-memory manager for the MVP."""
 
+    # --- Mood integration ---
+    _MOOD_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "mood_states.json")
+    """Lightweight in-memory manager for the MVP."""
+
     def __init__(self, memories_path: Optional[str] = None, events_path: Optional[str] = None, *, autoload: bool = False) -> None:
         self._records: Dict[str, MemoryRecord] = {}
+        # Optional repository (supabase)
+        self.memory_repo = None
+        self.event_repo = None
+        if STORAGE_BACKEND == "supabase" and SupabaseMemoryRepo:
+            self.memory_repo = SupabaseMemoryRepo()
+            self.event_repo = SupabaseEventRepo()
+
         
         # Default file paths
         self.memories_path = memories_path
@@ -259,7 +282,7 @@ class MemoryManager:
         if not events_path and os.path.exists(os.path.join(os.path.dirname(__file__), '..', 'data')):
             self.events_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'scheduled_events.json')
             
-        self.scheduler = EventScheduler(self.events_path)
+        self.scheduler = EventScheduler(self.events_path, event_repo=self.event_repo)
         
         # --- Relationship tracking ---
         self.relationship_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'relationships.json')
@@ -294,6 +317,15 @@ class MemoryManager:
             except Exception as e:
                 print(f"[MemoryManager] Failed to load existing memories: {e}")
         
+        # If using external repo, preload existing memories
+        if autoload and self.memory_repo:
+            try:
+                for rec in self.memory_repo.load_all():
+                    self._records[rec.id] = rec
+                print(f"[MemoryManager] Loaded {len(self._records)} memories from Supabase")
+            except Exception as err:
+                print(f"[MemoryManager] Failed to preload from Supabase: {err}")
+
         # ------------ reflection manager ------------
         data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data')
         self.reflection_mgr = ReflectionManager(Path(data_dir))
@@ -609,7 +641,17 @@ Return JSON with:
             personal_factor = self._get_personal_factor(character_id, category)
             
             # Calculate weighted importance
-            raw_score = abs(significance) * novelty * personal_factor
+            # Apply mood bias (valence)
+            mood_vec = self._get_mood_vector(character_id)
+            val = mood_vec.get("valence", 0.0)
+            flirt = mood_vec.get("flirt", 0.0)
+            shadow = mood_vec.get("shadow", 0.0)
+            playfulness = mood_vec.get("playfulness", 0.0)
+            bias_factor = 1 + val*0.25 + flirt*0.15 - shadow*0.2
+            raw_score = abs(significance) * novelty * personal_factor * bias_factor
+            # If negative sentiment and playfulness positive, down-weight slightly
+            if sentiment < 0 and playfulness > 0:
+                raw_score *= (1 - playfulness*0.2)
             weight = min(1.0, 0.1 + 0.3 * raw_score)
             
             # Apply forgiveness/amplification to existing memories before saving new one
@@ -629,6 +671,15 @@ Return JSON with:
             
             # Update relationship score
             self._update_relationship(character_id, emotions_map, category, significance, personal_factor)
+
+            # Nudge mood slightly towards emotions of this memory
+            self._nudge_mood(character_id, emotions_map)
+            # Persist to repo if configured
+            if self.memory_repo:
+                try:
+                    self.memory_repo.save(memory)
+                except Exception as err:
+                    print(f"[MemoryManager] Supabase save error: {err}")
 
             # Supervisor: maybe suggest prompt refresh
             try:
@@ -1213,9 +1264,63 @@ Return JSON with:
             self.relationships[character_id] = {axis: 0.0 for axis in RELATIONSHIP_AXES}
         rel = self.relationships[character_id]
         self._ensure_axis_defaults(rel)
+        # Apply arousal amplification
+        mood_vec = self._get_mood_vector(character_id)
+        arousal_factor = 1 + mood_vec.get("arousal", 0.0) * 0.2
+        shadow = mood_vec.get("shadow", 0.0)
+        # Shadow amplifies negative deltas
+        for ax, d in scaled_deltas.items():
+            if d < 0 and shadow > 0:
+                scaled_deltas[ax] = d * (1 + shadow*0.3)
+        scaled_deltas = {ax: d * arousal_factor for ax, d in scaled_deltas.items()}
+
         for axis, delta in scaled_deltas.items():
             rel[axis] = max(-1.0, min(1.0, rel.get(axis, 0.0) + delta))
         self._save_relationships()
+
+        # ---------------- Mood helpers -----------------
+    def _get_mood_vector(self, character_id: str) -> Dict[str, float]:
+        """Load current mood vector for character (may be empty)."""
+        try:
+            if os.path.exists(self._MOOD_PATH):
+                with open(self._MOOD_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    entry = data.get(character_id)
+                    if entry:
+                        return {k: float(v) for k, v in entry.get("vector", {}).items()}
+        except Exception:
+            pass
+        return {}
+
+    def _get_mood_valence_arousal(self, character_id: str) -> Tuple[float, float]:
+        vec = self._get_mood_vector(character_id)
+        return float(vec.get("valence", 0.0)), float(vec.get("arousal", 0.0))
+
+    def _nudge_mood(self, character_id: str, emotions: Dict[str, float]):
+        """Adjust mood slightly towards message emotions."""
+        if not emotions:
+            return
+        try:
+            data = {}
+            if os.path.exists(self._MOOD_PATH):
+                with open(self._MOOD_PATH, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            entry = data.get(character_id)
+            if not entry:
+                return
+            vec = entry.get("vector", {})
+            changed = False
+            for emo, delta in emotions.items():
+                if emo in vec:
+                    vec[emo] = max(-0.4, min(0.4, vec[emo] + delta*0.05))
+                    changed = True
+            if changed:
+                entry["vector"] = vec
+                data[character_id] = entry
+                with open(self._MOOD_PATH, "w", encoding="utf-8") as f:
+                    json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception:
+            pass
 
     # ---------------- passive decay --------------------
     def _apply_passive_decay(self):

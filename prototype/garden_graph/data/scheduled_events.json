@@ -18,5 +18,15 @@
     "completed": true,
     "user_responded": true,
     "created_at": "2025-06-02T17:12:12.089925+00:00"
+  },
+  "a982b6c1-81ba-49b4-870f-645de7ee0965": {
+    "id": "a982b6c1-81ba-49b4-870f-645de7ee0965",
+    "character_id": "char1",
+    "event_time": "2025-06-17T16:44:58.010102+00:00",
+    "description": "Emotional memory threshold reached – consider updating system prompt.",
+    "reminder_time": null,
+    "completed": false,
+    "user_responded": false,
+    "created_at": "2025-06-17T16:43:27.122433+00:00"
   }
 }

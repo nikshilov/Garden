@@ -38,14 +38,25 @@ class ScheduledEvent:
 class EventScheduler:
     """Manages scheduled events for characters."""
     
-    def __init__(self, filepath: Optional[str] = None):
+    def __init__(self, filepath: Optional[str] = None, event_repo=None):
         """Initialize the event scheduler.
         
         Args:
             filepath: Path to load/save events from/to
         """
         self._events: Dict[str, ScheduledEvent] = {}
+        self.repo = event_repo
         self.filepath = filepath
+
+        # Pre-load persisted events
+        if self.repo:
+            try:
+                for row in self.repo.load_all():
+                    evt = ScheduledEvent.from_dict(row)
+                    self._events[evt.id] = evt
+            except Exception as err:  # pragma: no cover
+                print(f"[EventScheduler] Failed to preload from Supabase: {err}")
+
         if filepath:
             self.load_from_file(filepath)
     
@@ -81,10 +92,18 @@ class EventScheduler:
         )
         
         self._events[event_id] = event
-        
+
+        # Persist to Supabase if configured
+        if self.repo:
+            try:
+                from dataclasses import asdict
+                self.repo.save(asdict(event))
+            except Exception as err:  # pragma: no cover
+                print(f"[EventScheduler] Supabase save error: {err}")
+
         if self.filepath:
             self.save_to_file(self.filepath)
-            
+
         return event_id
     
     def get_pending_events(self, 
@@ -143,10 +162,18 @@ class EventScheduler:
             
         self._events[event_id].completed = True
         self._events[event_id].user_responded = user_responded
-        
+
+        # Persist update to Supabase
+        if self.repo:
+            try:
+                from dataclasses import asdict
+                self.repo.save(asdict(self._events[event_id]))
+            except Exception as err:  # pragma: no cover
+                print(f"[EventScheduler] Supabase save error: {err}")
+
         if self.filepath:
             self.save_to_file(self.filepath)
-            
+
         return True
     
     def get_events_for_character(self, character_id: str) -> List[ScheduledEvent]:

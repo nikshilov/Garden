@@ -60,11 +60,15 @@ def print_header():
     print(f"Current session cost: ${cost_tracker.get_total_usd():.6f}")
     print("-" * 50)
 
-async def main():
+async def main(router_model: str = "gpt-4o", backend: str | None = None):
     """Run the CLI demo."""
     # Initialize the chat graph
+        # Allow override via CLI
+    if backend:
+        os.environ["STORAGE_BACKEND"] = backend
+
     graph = create_world_chat_graph(
-        router_model="gpt-4o",
+        router_model=router_model,
         character_models={
             "eve": "gpt-4o",
             "atlas": "gpt-4o"
@@ -228,8 +232,52 @@ async def main():
     print("Thanks for using Garden World Chat!")
 
 if __name__ == "__main__":
+    import argparse, textwrap
+
+    parser = argparse.ArgumentParser(
+        prog="garden chat",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=textwrap.dedent("""\
+        Interactive Garden World Chat CLI.
+        Example:
+            garden chat --backend supabase --router-model gpt-4o-mini
+        """),
+    )
+    parser.add_argument("--backend", choices=["json", "supabase"], help="Persistence backend override")
+    parser.add_argument("--router-model", default="gpt-4o", help="LLM model used by the router node")
+    parser.add_argument("--reset-mood", action="store_true", help="Generate a new mood state for all characters (deletes cached state)")
+    parser.add_argument("--show-mood-log", action="store_true", help="Show recent mood log and exit")
+
+    args = parser.parse_args()
+
+    # Mood files path helper
+    DATA_DIR = pathlib.Path(__file__).resolve().parent.parent / "data"
+    MOOD_STATE_FILE = DATA_DIR / "mood_states.json"
+    MOOD_LOG_FILE = DATA_DIR / "mood_log.csv"
+
+    if args.show_mood_log:
+        if MOOD_LOG_FILE.exists():
+            import csv, itertools
+            print("Recent mood log entries:\n")
+            with MOOD_LOG_FILE.open("r", encoding="utf-8") as f:
+                rows = list(csv.reader(f))
+                header, records = rows[0], rows[1:]
+                for row in records[-15:]:
+                    ts, char, axis, val, ar, _ = row
+                    print(f"{ts[:16]} | {char:6} | {axis:11} | val={val} ar={ar}")
+        else:
+            print("No mood_log.csv found yet.")
+        sys.exit(0)
+
+    if args.reset_mood and MOOD_STATE_FILE.exists():
+        try:
+            MOOD_STATE_FILE.unlink()
+            print("Mood state file deleted – new moods will be generated on next run.")
+        except Exception as e:
+            print(f"Failed to reset mood file: {e}")
+
     try:
-        asyncio.run(main())
+        asyncio.run(main(router_model=args.router_model, backend=args.backend))
     except KeyboardInterrupt:
         print("\nExiting...")
         sys.exit(0)
