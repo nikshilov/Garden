@@ -3,6 +3,8 @@ Configuration and model provider setup for Garden World Chat.
 Loads settings from .env file and provides model initialization.
 """
 import os
+from pathlib import Path
+import yaml
 from typing import Dict, Any, Optional, Union
 from dotenv import load_dotenv
 
@@ -34,6 +36,20 @@ EMOTIONAL_IMPACT_THRESHOLD = float(os.getenv("EMOTIONAL_IMPACT_THRESHOLD", "0.5"
 STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "json").lower()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_ROLE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+# --- Intimacy Mode config from YAML ---
+CONFIG_PATH = Path(__file__).with_name("config.yaml")
+_intimacy_cfg = {}
+if CONFIG_PATH.exists():
+    try:
+        _intimacy_cfg = yaml.safe_load(CONFIG_PATH.read_text()).get("intimacy", {})
+    except Exception as e:
+        print(f"[config] Failed to parse {CONFIG_PATH}: {e}")
+
+INTIMACY_AFFECTION_THRESHOLD = float(os.getenv("INTIMACY_AFFECTION_THRESHOLD", _intimacy_cfg.get("affection_threshold", 0.8)))
+INTIMACY_AROUSAL_THRESHOLD = float(os.getenv("INTIMACY_AROUSAL_THRESHOLD", _intimacy_cfg.get("arousal_threshold", 0.5)))
+INTIMACY_SAFE_MODE = os.getenv("INTIMACY_SAFE_MODE", str(_intimacy_cfg.get("safe_mode", False))).lower() == "true"
+INTIMACY_MODEL_DEFAULT = os.getenv("INTIMATE_MODEL", _intimacy_cfg.get("model", "gpt-3.5-turbo"))
 
 # --- Supervisor / Producer thresholds ---
 # Accumulated emotional 'energy' triggering prompt refresh suggestion

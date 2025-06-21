@@ -16,6 +16,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 from garden_graph.graph import create_world_chat_graph, format_cost_summary
+from garden_graph.mood import AXIS_ADJECTIVE
+from garden_graph.config import INTIMACY_MODEL_DEFAULT
 from garden_graph.cost_tracker import CostTracker
 from garden_graph.memory.manager import MemoryManager
 
@@ -47,18 +49,41 @@ except Exception as e:
 # Enable memory debug mode
 DEBUG_MEMORY = True
 
+
 def clear_screen():
     """Clear the terminal screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def print_header():
-    """Print CLI header."""
+
+def _mood_summary(char_id: str) -> str:
+    """Return short mood adjective and valence for header."""
+    try:
+        mood_vec = memory_manager._get_mood_vector(char_id)  # type: ignore
+    except Exception:
+        mood_vec = {}
+    if not mood_vec:
+        return "-"
+    # Exclude non-descriptive axes
+    exclude = {"valence", "arousal", "dominance"}
+    dominant_axis = max((ax for ax in mood_vec if ax not in exclude), key=lambda a: abs(mood_vec[a]), default=None)
+    adjective = AXIS_ADJECTIVE.get(dominant_axis, dominant_axis) if dominant_axis else "neutral"
+    val = mood_vec.get("valence", 0.0)
+    return f"{adjective} (val={val:+.2f})"
+
+
+def print_header(intimacy_enabled: bool = False, intimate_model: str = INTIMACY_MODEL_DEFAULT):
+    """Print CLI header with mood summaries."""
     print("=" * 50)
     print("     GARDEN WORLD CHAT - LangGraph Prototype")
     print("=" * 50)
     print("Characters: Eve, Atlas")
+    mode_str = "ON" if intimacy_enabled else "OFF"
+    print(f"Intimacy: {mode_str} • model {intimate_model}")
+    print(f"Eve   mood: {_mood_summary('eve')}")
+    print(f"Atlas mood: {_mood_summary('atlas')}")
     print(f"Current session cost: ${cost_tracker.get_total_usd():.6f}")
     print("-" * 50)
+
 
 async def main(router_model: str = "gpt-4o", backend: str | None = None):
     """Run the CLI demo."""
@@ -85,12 +110,14 @@ async def main(router_model: str = "gpt-4o", backend: str | None = None):
         "selected_characters": set(), # For display - won't get emptied during processing
         "character_responses": {},
         "final_response": None,
+        "intimacy_mode": False,
+        "intimate_model": INTIMACY_MODEL_DEFAULT,
         "costs": {}
     }
     
     # Welcome message
     clear_screen()
-    print_header()
+    print_header(state.get("intimacy_mode", False), state.get("intimate_model", INTIMACY_MODEL_DEFAULT))
     print("\nWelcome to the Garden world chat!")
     print("Type '@eve' or '@atlas' to address characters directly.")
     print("Type 'exit' or 'quit' to end the session.\n")
@@ -176,6 +203,8 @@ async def main(router_model: str = "gpt-4o", backend: str | None = None):
         selected_chars_list = list(state["selected_characters"]) if state["selected_characters"] else []
         selected_chars = ", ".join(selected_chars_list)
         print(f"\n[Router selected: {selected_chars}]")
+        # Update header with possibly changed intimacy status
+        print_header(state.get("intimacy_mode", False), state.get("intimate_model", INTIMACY_MODEL_DEFAULT))
         
         # Print cost summary for this interaction
         cost_summary = format_cost_summary(cost_tracker)

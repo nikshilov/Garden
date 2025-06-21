@@ -10,12 +10,15 @@ import json
 from garden_graph.router import Router
 from garden_graph.character import Character
 from garden_graph.cost_tracker import CostTracker
-from garden_graph.config import ROUTER_MODEL
+from garden_graph.config import ROUTER_MODEL, INTIMACY_AFFECTION_THRESHOLD, INTIMACY_AROUSAL_THRESHOLD
 from datetime import datetime
+
+
 
 # Define state schema
 class ChatState(TypedDict):
     user_message: str
+    intimacy_mode: bool
     message_history: List[Dict]
     active_characters: Set[str]
     selected_characters: Set[str]  # This preserves the original selection for display
@@ -52,6 +55,16 @@ def create_world_chat_graph(
     }
     
     # Define nodes
+    def _should_auto_intimate(char_id: str) -> bool:
+        """Return True if intimacy mode should auto-activate for this character."""
+        if memory_manager is None:
+            return False
+        rel = memory_manager.relationships.get(char_id, {})
+        affection = rel.get("affection", 0.0)
+        mood_vec = memory_manager._get_mood_vector(char_id)
+        arousal = mood_vec.get("arousal", 0.0)
+        return affection >= INTIMACY_AFFECTION_THRESHOLD and arousal >= INTIMACY_AROUSAL_THRESHOLD
+
     def route_message(state: ChatState) -> Dict:
         """Router node decides which characters should respond."""
         # If we already have a routing queue, skip re-routing (prevents duplicate routing on re-entry)
@@ -59,11 +72,31 @@ def create_world_chat_graph(
             # No update – let remaining queue be processed
             return {}
         
-        user_message = state["user_message"]
+        user_message = state["user_message"].strip()
+        # Early handle '/intimate' commands before routing/LLM usage
+        if user_message.lower().startswith("/intimate"):
+            parts = user_message.split()
+            if len(parts) == 2 and parts[1] in {"on", "off"}:
+                enabled = parts[1] == "on"
+                return {"intimacy_mode": enabled, "final_response": f"[Intimacy mode {'ON' if enabled else 'OFF'}]"}
+            if len(parts) == 3 and parts[1] == "model":
+                model_name = parts[2]
+                return {"intimate_model": model_name, "final_response": f"[Intimacy model set to {model_name}]"}
         history = state.get("message_history", [])
         
         # Используем существующий метод router.route для определения активных персонажей
         active_chars = router.route(user_message, history)
+        # Auto-trigger intimacy if not already active
+        if not state.get("intimacy_mode"):
+            for cid in active_chars:
+                if _should_auto_intimate(cid):
+                    state["intimacy_mode"] = True
+                    active_chars = [cid]
+                    print(f"[Graph] Auto-activated Intimacy Mode for {cid}")
+                    break
+        # If intimacy mode already on, limit to the first character
+        if state.get("intimacy_mode"):
+            active_chars = active_chars[:1] if active_chars else []
         print(f"[Graph:route_message] Router selected: {active_chars}")
         
         # Track character selections for analytics & display (only first time)
@@ -101,21 +134,29 @@ def create_world_chat_graph(
         history = state["message_history"]
         
         # Get character response
-        character = characters[character_id]
+        if state.get("intimacy_mode"):
+            from garden_graph.intimate_agent import IntimateAgent
+            agent = IntimateAgent(model_name=state.get("intimate_model"))
+            response = agent.respond(user_message, history)
+        else:
+            character = characters[character_id]
+            response = character.respond(user_message, history)
         print(f"[Graph:character_node:{character_id}] Generating response for '{user_message}'")
-        response = character.respond(user_message, history)
         print(f"[Graph:character_node:{character_id}] Generated response: '{response[:30]}...'")
         
         # Record cost for this character model interaction
-        model = character_models.get(character_id, "gpt-3.5-turbo")
+        if state.get("intimacy_mode"):
+            model = agent.model_name
+        else:
+            model = character_models.get(character_id, "gpt-3.5-turbo")
         # We don't have exact token counts, but we can estimate based on length
         prompt_tokens = len(user_message) // 4  # Rough estimate
         completion_tokens = len(response) // 4   # Rough estimate
-        cost_tracker.record(model, prompt_tokens, completion_tokens)
+        cost_tracker.record(model, prompt_tokens, completion_tokens, category="intimacy" if state.get("intimacy_mode") else "general")
         
         # Create new history entry
         new_message = {
-            "role": character.name,
+            "role": characters[character_id].name,
             "content": response,
             "character_id": character_id,
             "timestamp": datetime.utcnow().isoformat()
@@ -140,6 +181,17 @@ def create_world_chat_graph(
         responses = state["character_responses"]
         selected_chars = state.get("selected_characters", set())
         
+        # Handle '/intimate' commands
+        user_message = state["user_message"].strip()
+        if user_message.lower().startswith("/intimate"):
+            parts = user_message.split()
+            if len(parts) == 2 and parts[1] in {"on", "off"}:
+                enabled = parts[1] == "on"
+                return {"intimacy_mode": enabled, "final_response": f"[Intimacy mode {'ON' if enabled else 'OFF'}]"}
+            if len(parts) == 3 and parts[1] == "model":
+                model_name = parts[2]
+                return {"intimate_model": model_name, "final_response": f"[Intimacy model set to {model_name}]"}
+
         # Format the final response
         response_parts = []
         for char_id in selected_chars:
@@ -164,6 +216,9 @@ def create_world_chat_graph(
                 user_message = state["user_message"]
                 char_response = responses[char_id]
                 
+                # skip processing '/intimate' commands
+                if user_message.startswith('/intimate'):
+                    continue
                 created_memories = memory_manager.process_conversation_update(
                     character_id=char_id,
                     user_message=user_message,
@@ -242,7 +297,7 @@ Keep it brief (1-2 sentences) and respond in the same language as the conversati
                 model = character_models.get(char_id, "gpt-3.5-turbo")
                 prompt_tokens = len(cross_talk_prompt) // 4
                 completion_tokens = len(cross_talk_response) // 4
-                cost_tracker.record(model, prompt_tokens, completion_tokens)
+                cost_tracker.record(model, prompt_tokens, completion_tokens, category="intimacy" if state.get("intimacy_mode") else "general")
                 
                 # Only add if character has something to say
                 if cross_talk_response.lower() != "pass" and len(cross_talk_response) > 5:
@@ -323,13 +378,15 @@ def format_cost_summary(cost_tracker) -> str:
     """Format cost summary for display."""
     if not cost_tracker or not hasattr(cost_tracker, 'get_total_usd'):
         return "Cost tracking disabled"
-        
+
     total_usd = cost_tracker.get_total_usd()
     model_breakdown = cost_tracker.get_model_breakdown()
-    
-    summary = f"Cost: ${total_usd:.6f}\n"
-    for model, model_usd in model_breakdown.items():
-        # Можно добавить подробную информацию о токенах позже
-        summary += f"  {model}: ${model_usd:.6f}\n"
-        
-    return summary
+    cat_breakdown = cost_tracker.get_category_breakdown() if hasattr(cost_tracker, 'get_category_breakdown') else {}
+
+    summary_lines = [f"Cost: ${total_usd:.6f}"]
+    for model, usd in model_breakdown.items():
+        summary_lines.append(f"  {model}: ${usd:.6f}")
+    if cat_breakdown:
+        cats = ", ".join(f"{c}:{v:.4f}$" for c,v in cat_breakdown.items())
+        summary_lines.append(f"  by category → {cats}")
+    return "\n".join(summary_lines)

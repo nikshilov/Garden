@@ -17,25 +17,31 @@ DEFAULT_PRICING = {
     "gpt-4.1-turbo": {"prompt": 0.01, "completion": 0.03},
     # Approximate pricing for GPT-4o (update if OpenAI publishes changes)
     "gpt-4o": {"prompt": 0.005, "completion": 0.015},
+    # Experimental smaller variant pricing assumed equal to gpt-4o until official numbers published
+    "gpt-4o-mini": {"prompt": 0.005, "completion": 0.015},
     "claude-instant-1": {"prompt": 0.0008, "completion": 0.0024},
     "claude-2": {"prompt": 0.011, "completion": 0.032},
-    "claude-3-sonnet": {"prompt": 0.008, "completion": 0.024}
+    "claude-3-sonnet": {"prompt": 0.008, "completion": 0.024},
+    # Approx pricing for Groq Llama-3 Instruct
+    "llama3-70b": {"prompt": 0.002, "completion": 0.002}
 }
 
 class CostRecord:
     """Record of a single LLM call with tokens and cost."""
     
-    def __init__(self, 
-                 model_id: str, 
-                 prompt_tokens: int, 
+    def __init__(self,
+                 model_id: str,
+                 prompt_tokens: int,
                  completion_tokens: int,
-                 message_id: str = None):
+                 message_id: str | None = None,
+                 category: str = "general"):
         """Initialize with model ID and token counts."""
         self.id = f"cost_{datetime.now().timestamp()}"
         self.model_id = model_id
         self.prompt_tokens = prompt_tokens
         self.completion_tokens = completion_tokens
         self.message_id = message_id
+        self.category = category
         self.created_at = datetime.now()
         
         # Calculate USD cost
@@ -54,7 +60,8 @@ class CostRecord:
             "completion_tokens": self.completion_tokens,
             "usd": self.usd,
             "created_at": self.created_at.isoformat(),
-            "message_id": self.message_id
+            "message_id": self.message_id,
+            "category": self.category
         }
 
 
@@ -68,17 +75,18 @@ class CostTracker:
         self.budget_limit = BUDGET_LIMIT  # Use configured limit
         self.disabled = DISABLE_COST_TRACKING
         
-    def record(self, 
-               model: str, 
-               prompt_tokens: int, 
+    def record(self,
+               model: str,
+               prompt_tokens: int,
                completion_tokens: int,
-               message_id: str = None) -> CostRecord:
+               message_id: str | None = None,
+               category: str = "general") -> CostRecord:
         """Record a new LLM call and update totals."""
         # Skip if cost tracking is disabled
         if self.disabled:
             return CostRecord(model, 0, 0, message_id)  # Return empty record
             
-        record = CostRecord(model, prompt_tokens, completion_tokens, message_id)
+        record = CostRecord(model, prompt_tokens, completion_tokens, message_id, category)
         self.records.append(record)
         
         # Update session total
@@ -104,6 +112,13 @@ class CostTracker:
             result[model] += record.usd
         return result
     
+    def get_category_breakdown(self) -> Dict[str, float]:
+        """Return cost totals grouped by category."""
+        out: Dict[str, float] = {}
+        for rec in self.records:
+            out[rec.category] = out.get(rec.category, 0.0) + rec.usd
+        return out
+    
     def export_csv(self, file_path: str) -> None:
         """Export all records to CSV."""
         import csv
@@ -111,14 +126,14 @@ class CostTracker:
             writer = csv.writer(f)
             writer.writerow([
                 "ID", "Model", "Prompt Tokens", "Completion Tokens", 
-                "USD", "Created At", "Message ID"
+                "USD", "Created At", "Message ID", "Category"
             ])
             for record in self.records:
                 d = record.to_dict()
                 writer.writerow([
                     d["id"], d["model_id"], d["prompt_tokens"], 
                     d["completion_tokens"], d["usd"], 
-                    d["created_at"], d["message_id"] or ""
+                    d["created_at"], d["message_id"] or "", d["category"]
                 ])
                 
     def set_budget_limit(self, limit: float) -> None:

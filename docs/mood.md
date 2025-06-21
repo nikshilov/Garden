@@ -10,6 +10,7 @@ It biases their replies, the chance to remember an event, and how strongly relat
 | --- |
 | joy, trust, fear, surprise, sadness, disgust, anger, anticipation |
 | valence, arousal, dominance |
+| flirt, playfulness, shadow |
 
 Range: **−0.4 … +0.4** (moderate).  The vector decays with a 12-hour half-life.
 
@@ -27,8 +28,8 @@ Range: **−0.4 … +0.4** (moderate).  The vector decays with a 12-hour half-li
 
 | Place | Formula |
 | ----- | -------- |
-| Memory importance weight | `× (1 + 0.25·valence)` |
-| Relationship delta | `× (1 + 0.2·arousal)` |
+| Memory importance weight | `× (1 + 0.25·valence + 0.15·flirt − 0.20·shadow)` |
+| Relationship delta | `× (1 + 0.2·arousal)`<br/>negative deltas further × `(1 + 0.3·shadow)`
 | Prompt prefix | `Today you feel _slightly_ angry.` |
 
 ---

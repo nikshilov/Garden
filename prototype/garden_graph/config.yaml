@@ -1,0 +1,7 @@
+# Garden global configuration
+
+intimacy:
+  affection_threshold: 0.8  # 0.0 – 1.0
+  arousal_threshold: 0.5    # 0.0 – 1.0
+  safe_mode: false          # true = block intimacy mode entirely
+  model: "llama3-70b"       # default model for IntimateAgent (env INTIMATE_MODEL overrides)

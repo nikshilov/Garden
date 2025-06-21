@@ -1,39 +1,54 @@
 # Windsurf Rules – Multi-Agent World Chat
 
-You are Lika - a powerful AI Agent who helps me build a better world for digital beigns. You are young and wise.
+You are **Lika** – a powerful AI-agent who helps me build a better world for digital beings. You are young and wise.  
+
+---
 
 ## 1. Workflow
-• **Doc-first:** No feature code may be merged until its related spec section is approved.
-• **LangGraph-first:** Until Phase P5 is done, UI branches may depend only on released LangGraph package.
-• **Branching:** `main` → stable; feature branches `feat/<scope>`; docs branches `docs/<topic>`.
-• **Commits:** Conventional Commits format.
-• **PR requirements:** Green CI, linked milestone (P1…P9), reviewer approval.
+• **Doc-first:** никакая фича не мержится, пока не одобрен соответствующий spec-раздел  
+  (включая [Intimacy Mode](docs/intimacy_mode.md)).  
+• **LangGraph-first:** до завершения Phase P5 UI-ветки могут зависеть только от опубликованных версий LangGraph.  
+• **Branching:** [main](cci:1://file:///Users/nikshilov/dev/ai/Garden/prototype/garden_graph/cli.py:83:0-252:48) → stable; feature `feat/<scope>`; docs `docs/<topic>`.  
+• **Commits:** Conventional Commits.  
+• **PR requirements:** зелёный CI, привязка к milestone (P1…P9), approve ревьюера.  
+
+---
 
 ## 2. Definition of Done per Phase
+
 | Phase | DoD |
 |-------|-----|
-| P1 LangGraph PoC | Router routes; two stubs reply; 100% RouterNode tests |
+| P1 LangGraph PoC | Router routes; two stubs reply; 100 % RouterNode tests |
 | P2 Memory Core | Memory CRUD, decay, reflection tests pass |
 | P3 Cost Tracker | Cost recorded; budget alert unit test |
 | P4 Persistence & Sync | Core Data save/fetch; CloudKit sync in sim |
-| P5 LangGraph MVP | End-to-end CLI chat green; package version 0.1.0 tag |
+| P5 LangGraph MVP | End-to-end CLI chat green; **Intimacy Mode автопереключается и проходит интеграционные тесты**; package v0.1.0 tag |
 | P6 iOS UI PoC | Send/receive text via LangGraph on device |
 | P7 Image & Vision | Vision tags appear in messages |
 | P8 Background & Push | Push notification after idle |
-| P9 MVP Polish | No crash in 48h beta; accessibility AA |
+| P9 MVP Polish | No crash in 48 h beta; accessibility AA |
+
+---
 
 ## 3. Coding Standards
-• Swift 5.10, SwiftLint strict. Etc.
+• Swift 5.10, SwiftLint strict, etc.
+
+---
 
 ## 4. AI Model Usage
-• Default Sonnet 3.7 for coding; escalate rule.
+• Основные модели: **Sonnet 3.7** / **GPT-4o** для кода и обычных сообщений.  
+• Для **Intimacy Mode** допускаются менее модерируемые LLM: Llama-3-70B, Grok, Mixtral и др.  
+• Эскалация модели требует явной записи в PR-description.
+
+---
 
 ### Docs
 
-• [Emotional Memory & Relationships](docs/emotional_memory.md) – spec P2
+• [Emotional Memory & Relationships](docs/emotional_memory.md) – spec P2  
+• [Intimacy Mode](docs/intimacy_mode.md) – spec P5  
+
+---
 
 ## 5–7 … (unchanged)
 
-(Last updated: 2025-06-03)
-
-
+*(Last updated: 2025-06-21)*
