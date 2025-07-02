@@ -1,0 +1,29 @@
+{
+  "char": {
+    "affection": -0.1193472309150944,
+    "trust": 0.0,
+    "respect": -0.08951042318632081,
+    "familiarity": 0.0,
+    "tension": 0.2088576541014152,
+    "empathy": 0.0,
+    "engagement": 0.0,
+    "security": 0.0,
+    "autonomy": 0.0,
+    "admiration": 0.0
+  },
+  "eve": {
+    "affection": 0.9946596302668078,
+    "trust": 0.9946596302668078,
+    "respect": 0.0,
+    "familiarity": 0.0,
+    "tension": 0.0,
+    "empathy": 0.08951042318632081,
+    "engagement": 0.9946596302668078,
+    "security": 0.8405857774355425,
+    "autonomy": 0.3962718963255021,
+    "admiration": 0.0
+  },
+  "__meta__": {
+    "last_decay": "2025-07-02T10:55:59.743927+00:00"
+  }
+}

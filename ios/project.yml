@@ -1,0 +1,28 @@
+name: GardenChat
+options:
+  createWorkspace: true
+  deploymentTarget:
+    iOS: '17.0'
+packages:
+  SwiftLint:
+    url: https://github.com/realm/SwiftLint
+    from: 0.55.0
+targets:
+  GardenCore:
+    type: framework
+    platform: iOS
+    sources: [GardenCore/Sources]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ai.garden.core
+  GardenChat:
+    type: application
+    platform: iOS
+    sources: [GardenChat/Sources]
+    dependencies:
+      - target: GardenCore
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: ai.garden.chat

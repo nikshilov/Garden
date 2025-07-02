@@ -1,0 +1,454 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 54;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		208A888F57D5FB575ECFDDF3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8317CE6269196FABDAF7CFDF /* Config.swift */; };
+		29B5182A11AAB721C1C06B70 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */; };
+		88E2647EE19AC58942E1F684 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8012A334C6CFCE8A85EEB368 /* ContentView.swift */; };
+		8D26D2AA765E168E09467AD2 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25B9950FA0AEEA211DA4B6A3 /* Models.swift */; };
+		8EDE9E46773CFCCA5BE4407E /* GardenCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5759FAAE50EA5E934A3028F3 /* GardenCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		EE1CADF592425A10A747B1FC /* GardenCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5759FAAE50EA5E934A3028F3 /* GardenCore.framework */; };
+		F2271948EADD02116282D909 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */; };
+		FF0D83B63B99233EE5394D80 /* GardenChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		449177856625A913C6B30453 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 729612F1AB0247ED63824BE3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 3EC48B66EC59B220D05F6A90;
+			remoteInfo = GardenCore;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8DCA35E2B8F92C5FA193A22D /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				8EDE9E46773CFCCA5BE4407E /* GardenCore.framework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenChatApp.swift; sourceTree = "<group>"; };
+		25B9950FA0AEEA211DA4B6A3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		5759FAAE50EA5E934A3028F3 /* GardenCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GardenCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		8012A334C6CFCE8A85EEB368 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		8317CE6269196FABDAF7CFDF /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
+		A127B843E2E00962DC1066CB /* GardenChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GardenChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		E04F5AD1EBED2ACA736119CF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				EE1CADF592425A10A747B1FC /* GardenCore.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1D4B518AA24DDC1A6A612F28 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A127B843E2E00962DC1066CB /* GardenChat.app */,
+				5759FAAE50EA5E934A3028F3 /* GardenCore.framework */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		5BA673F8E9ED8710A7B1619A = {
+			isa = PBXGroup;
+			children = (
+				DBAD923D0C0940BDE46D2E21 /* Sources */,
+				CBE9481FDBFAE197AED4B0AF /* Sources */,
+				1D4B518AA24DDC1A6A612F28 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		CBE9481FDBFAE197AED4B0AF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */,
+				8317CE6269196FABDAF7CFDF /* Config.swift */,
+				25B9950FA0AEEA211DA4B6A3 /* Models.swift */,
+			);
+			name = Sources;
+			path = GardenCore/Sources;
+			sourceTree = "<group>";
+		};
+		DBAD923D0C0940BDE46D2E21 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */,
+				8012A334C6CFCE8A85EEB368 /* ContentView.swift */,
+				1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */,
+			);
+			name = Sources;
+			path = GardenChat/Sources;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		129040341E83CEEF88AB7CE3 /* GardenChat */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 61BFE05DFBC8CEF86F09CDD2 /* Build configuration list for PBXNativeTarget "GardenChat" */;
+			buildPhases = (
+				FEDFB1CA95D1E78BCACDB7B6 /* Sources */,
+				E04F5AD1EBED2ACA736119CF /* Frameworks */,
+				8DCA35E2B8F92C5FA193A22D /* Embed Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				82CE32A007DC577D195FEF47 /* PBXTargetDependency */,
+			);
+			name = GardenChat;
+			packageProductDependencies = (
+			);
+			productName = GardenChat;
+			productReference = A127B843E2E00962DC1066CB /* GardenChat.app */;
+			productType = "com.apple.product-type.application";
+		};
+		3EC48B66EC59B220D05F6A90 /* GardenCore */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 4537C971FA51221989E0205B /* Build configuration list for PBXNativeTarget "GardenCore" */;
+			buildPhases = (
+				37B305EB85136A93157EBDE3 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = GardenCore;
+			packageProductDependencies = (
+			);
+			productName = GardenCore;
+			productReference = 5759FAAE50EA5E934A3028F3 /* GardenCore.framework */;
+			productType = "com.apple.product-type.framework";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		729612F1AB0247ED63824BE3 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = A252408967E7D2636E42A91F /* Build configuration list for PBXProject "GardenChat" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 5BA673F8E9ED8710A7B1619A;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				5C9B250F8E6B531DFB01698B /* XCRemoteSwiftPackageReference "SwiftLint" */,
+			);
+			preferredProjectObjectVersion = 54;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				129040341E83CEEF88AB7CE3 /* GardenChat */,
+				3EC48B66EC59B220D05F6A90 /* GardenCore */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		37B305EB85136A93157EBDE3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				29B5182A11AAB721C1C06B70 /* APIClient.swift in Sources */,
+				208A888F57D5FB575ECFDDF3 /* Config.swift in Sources */,
+				8D26D2AA765E168E09467AD2 /* Models.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		FEDFB1CA95D1E78BCACDB7B6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F2271948EADD02116282D909 /* ChatViewModel.swift in Sources */,
+				88E2647EE19AC58942E1F684 /* ContentView.swift in Sources */,
+				FF0D83B63B99233EE5394D80 /* GardenChatApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		82CE32A007DC577D195FEF47 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 3EC48B66EC59B220D05F6A90 /* GardenCore */;
+			targetProxy = 449177856625A913C6B30453 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		6F2BECF7DFA7121A4E986AC5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7D9363A9BA43C053050CEA3E /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.garden.core;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Debug;
+		};
+		C13758050EA7C8C79426FA35 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
+				CURRENT_PROJECT_VERSION = 1;
+				DEFINES_MODULE = YES;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				GENERATE_INFOPLIST_FILE = YES;
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.garden.core;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		F27E774EB8896835E4BB158F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		F3ED25B7A85DCF9ABEE7CE8A /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.garden.chat;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		F6FA17B76979ACA78CB9F172 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = ai.garden.chat;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		4537C971FA51221989E0205B /* Build configuration list for PBXNativeTarget "GardenCore" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7D9363A9BA43C053050CEA3E /* Debug */,
+				C13758050EA7C8C79426FA35 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		61BFE05DFBC8CEF86F09CDD2 /* Build configuration list for PBXNativeTarget "GardenChat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F3ED25B7A85DCF9ABEE7CE8A /* Debug */,
+				F6FA17B76979ACA78CB9F172 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A252408967E7D2636E42A91F /* Build configuration list for PBXProject "GardenChat" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6F2BECF7DFA7121A4E986AC5 /* Debug */,
+				F27E774EB8896835E4BB158F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		5C9B250F8E6B531DFB01698B /* XCRemoteSwiftPackageReference "SwiftLint" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/realm/SwiftLint";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.55.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+	};
+	rootObject = 729612F1AB0247ED63824BE3 /* Project object */;
+}
