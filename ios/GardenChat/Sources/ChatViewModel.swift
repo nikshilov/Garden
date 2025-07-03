@@ -6,6 +6,10 @@ import GardenCore
 final class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
+    @Published var isTyping: Bool = false
+    @Published var totalCostUSD: Double = 0.0
+    
+    let characterName: String = "Eve" // Placeholder until backend returns persona info
 
     private let api = APIClient()
     private var cancellables = Set<AnyCancellable>()
@@ -18,12 +22,15 @@ final class ChatViewModel: ObservableObject {
         messages.append(userMsg)
 
         Task {
+            isTyping = true
+            defer { isTyping = false }
             do {
-                let reply = try await api.sendMessage(text: text)
-                let botMsg = ChatMessage(text: reply, isUser: false)
+                let response = try await api.sendMessage(text: text)
+                let botMsg = ChatMessage(text: response.text, isUser: false)
                 messages.append(botMsg)
+                totalCostUSD = response.cost_total_usd
             } catch {
-                let errMsg = ChatMessage(text: "Error: \(error.localizedDescription)", isUser: false)
+                let errMsg = ChatMessage(text: "Error: Could not connect to the server.", isUser: false)
                 messages.append(errMsg)
             }
         }

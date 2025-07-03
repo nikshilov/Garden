@@ -26,3 +26,5 @@ targets:
       base:
         GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ai.garden.chat
+    info:
+      path: GardenChat/Info.plist

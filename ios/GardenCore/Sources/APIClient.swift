@@ -13,13 +13,14 @@ public final class APIClient {
         self.session = session
     }
 
-    public struct ServerMessage: Codable {
+    public struct ChatResponse: Codable {
         public let text: String
+        public let cost_total_usd: Double
     }
 
-    /// Sends a chat message to the backend and returns the assistant reply.
-    /// For PoC we call POST /chat with JSON {"text": "..."} and expect {"text": "..."}.
-    public func sendMessage(text: String) async throws -> String {
+    /// Sends a chat message to the backend and returns the assistant reply and cost.
+    /// For PoC we call POST /chat with JSON {"text": "..."} and expect {"text": "...", "cost_total_usd": 0.0001}.
+    public func sendMessage(text: String) async throws -> ChatResponse {
         guard let url = URL(string: "/chat", relativeTo: Config.backendBaseURL) else {
             throw APIError.invalidURL
         }
@@ -32,6 +33,6 @@ public final class APIClient {
         guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
         }
-        return try JSONDecoder().decode(ServerMessage.self, from: data).text
+        return try JSONDecoder().decode(ChatResponse.self, from: data)
     }
 }

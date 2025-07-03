@@ -35,8 +35,8 @@
     "event_time": "2025-06-19T11:10:00.181213+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-19T11:08:36.270384+00:00"
   },
   "4583e470-a706-49c0-ba68-7e8278eb6b16": {
@@ -45,8 +45,8 @@
     "event_time": "2025-06-21T13:05:17.730555+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-21T13:03:54.844207+00:00"
   },
   "3f21f4ff-2b66-47a3-afbc-43d9204b0bdb": {
@@ -55,8 +55,8 @@
     "event_time": "2025-06-21T13:08:24.987578+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-21T13:07:07.307789+00:00"
   },
   "fc17f574-190c-4a42-a8b0-6bb987dfb3ed": {
@@ -65,8 +65,8 @@
     "event_time": "2025-06-21T13:08:55.066981+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-21T13:07:38.919309+00:00"
   },
   "1fd387a8-d4fb-438d-ae21-9033403f5633": {
@@ -75,8 +75,8 @@
     "event_time": "2025-06-21T13:25:39.414642+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-21T13:24:26.468833+00:00"
   },
   "65d0e8e2-f43c-4aea-a6cf-87737bce5d4f": {
@@ -85,8 +85,8 @@
     "event_time": "2025-06-21T13:43:07.838379+00:00",
     "description": "Emotional memory threshold reached – consider updating system prompt.",
     "reminder_time": null,
-    "completed": false,
-    "user_responded": false,
+    "completed": true,
+    "user_responded": true,
     "created_at": "2025-06-21T13:41:50.397779+00:00"
   }
 }
