@@ -9,10 +9,18 @@ final class ChatViewModel: ObservableObject {
     @Published var isTyping: Bool = false
     @Published var totalCostUSD: Double = 0.0
     
-    let characterName: String = "Eve" // Placeholder until backend returns persona info
+    let characterName: String
 
     private let api = APIClient()
     private var cancellables = Set<AnyCancellable>()
+    
+    init(character: Character) {
+        self.characterName = character.displayName
+    }
+    
+    convenience init() {
+        self.init(character: Character(id: "eve", displayName: "Eve"))
+    }
 
     func send() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
