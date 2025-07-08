@@ -31,6 +31,14 @@ public final class APIClient {
         req.httpBody = try JSONEncoder().encode(["text": text])
 
         let (data, resp) = try await session.data(for: req)
+        #if DEBUG
+        if let http = resp as? HTTPURLResponse {
+            print("APIClient: status = \(http.statusCode)")
+        }
+        if let body = String(data: data, encoding: .utf8) {
+            print("APIClient: body = \(body)")
+        }
+        #endif
         guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
         }
