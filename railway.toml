@@ -1,5 +1,6 @@
 [build]
 root = "backend"
 
-[start]
-cmd = "uvicorn server:app --host 0.0.0.0 --port 5050"
+[deploy]
+startCommand = "python -m uvicorn server:app --host 0.0.0.0 --port 5050"
+healthcheckPath = "/health"
