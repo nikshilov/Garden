@@ -21,9 +21,10 @@ public final class APIClient {
     /// Sends a chat message to the backend and returns the assistant reply and cost.
     /// For PoC we call POST /chat with JSON {"text": "..."} and expect {"text": "...", "cost_total_usd": 0.0001}.
     public func sendMessage(text: String) async throws -> ChatResponse {
-        guard let url = URL(string: "/chat", relativeTo: Config.backendBaseURL) else {
-            throw APIError.invalidURL
-        }
+        let url = Config.backendBaseURL.appendingPathComponent("chat")
+        #if DEBUG
+        print("APIClient: POST \(url)")
+        #endif
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
