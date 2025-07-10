@@ -8,31 +8,47 @@ final class ChatViewModel: ObservableObject {
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var isTyping: Bool = false
+    private var typingPlaceholderId: UUID?
     @Published var totalCostUSD: Double = 0.0
     
     let characterName: String
+    let characterId: String
 
     private let api = APIClient()
     // Map ChatMessage to ExyteChat.Message for ChatView
     var exyteMessages: [ExyteChat.Message] {
         messages.map { msg in
             let user = msg.isUser ? ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true) : ExyteChat.User(id: "bot", name: characterName, avatarURL: nil, isCurrentUser: false)
+            let text = msg.text
             return ExyteChat.Message(
                 id: msg.id.uuidString,
                 user: user,
-                status: .sent,
+                status: msg.text.isEmpty ? .sending : .sent,
                 createdAt: msg.timestamp,
-                text: msg.text,
+                text: text,
                 attachments: [],
                 recording: nil,
                 replyMessage: nil
             )
         }
     }
+    
+    // Retrieve cost & time for Exyte message id
+    func meta(for exyteId: String) -> (cost: Double?, time: TimeInterval?)? {
+        guard let chatMsg = messages.first(where: { $0.id.uuidString == exyteId }) else { return nil }
+        return (chatMsg.costUSD, chatMsg.responseTime)
+    }
+
     private var cancellables = Set<AnyCancellable>()
+    
+    private static func cleanBotText(_ text: String) -> String {
+        let pattern = "^\\*\\*[^*]+\\*\\*: ?"
+        return text.replacingOccurrences(of: pattern, with: "", options: [.regularExpression])
+    }
     
     init(character: Character) {
         self.characterName = character.displayName
+        self.characterId = character.id
     }
     
     convenience init() {
@@ -54,17 +70,35 @@ final class ChatViewModel: ObservableObject {
         let userMsg = ChatMessage(text: text, isUser: true)
         messages.append(userMsg)
 
+        let startTime = Date()
         Task {
             isTyping = true
+        // Add placeholder loader message
+        let placeholderId = UUID()
+        typingPlaceholderId = placeholderId
+        let placeholder = ChatMessage(id: placeholderId, text: "", isUser: false)
+        messages.append(placeholder)
             defer { isTyping = false }
             do {
-                let response = try await api.sendMessage(text: text)
-                let botMsg = ChatMessage(text: response.text, isUser: false)
-                messages.append(botMsg)
+                let response = try await api.sendMessage(text: text, characterId: characterId)
+                let duration = Date().timeIntervalSince(startTime)
+                let cleanText = ChatViewModel.cleanBotText(response.text)
+                let botMsg = ChatMessage(text: cleanText, isUser: false, costUSD: response.cost_total_usd, responseTime: duration)
+                if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
+                    messages[idx] = botMsg
+                } else {
+                    messages.append(botMsg)
+                }
+                typingPlaceholderId = nil
                 totalCostUSD = response.cost_total_usd
             } catch {
                 let errMsg = ChatMessage(text: "Error: Could not connect to the server.", isUser: false)
-                messages.append(errMsg)
+                if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
+                    messages[idx] = errMsg
+                } else {
+                    messages.append(errMsg)
+                }
+                typingPlaceholderId = nil
             }
         }
     }

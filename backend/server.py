@@ -71,6 +71,7 @@ def _initial_state() -> Dict[str, Any]:
 
 class ChatRequest(BaseModel):
     text: str
+    character_id: str | None = None
 
 class ChatResponse(BaseModel):
     text: str
@@ -89,6 +90,9 @@ async def chat(req: ChatRequest):
 
     state = _initial_state()
     state["user_message"] = req.text
+    if req.character_id:
+        state["active_characters"] = {req.character_id}
+        state["selected_characters"] = {req.character_id}
     state["message_history"].append({"role": "user", "content": req.text})
 
     try:

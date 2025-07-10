@@ -20,7 +20,7 @@ public final class APIClient {
 
     /// Sends a chat message to the backend and returns the assistant reply and cost.
     /// For PoC we call POST /chat with JSON {"text": "..."} and expect {"text": "...", "cost_total_usd": 0.0001}.
-    public func sendMessage(text: String) async throws -> ChatResponse {
+    public func sendMessage(text: String, characterId: String?) async throws -> ChatResponse {
         let url = Config.backendBaseURL.appendingPathComponent("chat")
         #if DEBUG
         print("APIClient: POST \(url)")
@@ -28,7 +28,9 @@ public final class APIClient {
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        req.httpBody = try JSONEncoder().encode(["text": text])
+        var payload: [String: Any] = ["text": text]
+        if let cid = characterId { payload["character_id"] = cid }
+        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
 
         let (data, resp) = try await session.data(for: req)
         #if DEBUG
