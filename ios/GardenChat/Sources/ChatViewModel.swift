@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import ExyteChat
 import GardenCore
 
 @MainActor
@@ -12,6 +13,22 @@ final class ChatViewModel: ObservableObject {
     let characterName: String
 
     private let api = APIClient()
+    // Map ChatMessage to ExyteChat.Message for ChatView
+    var exyteMessages: [ExyteChat.Message] {
+        messages.map { msg in
+            let user = msg.isUser ? ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true) : ExyteChat.User(id: "bot", name: characterName, avatarURL: nil, isCurrentUser: false)
+            return ExyteChat.Message(
+                id: msg.id.uuidString,
+                user: user,
+                status: .sent,
+                createdAt: msg.timestamp,
+                text: msg.text,
+                attachments: [],
+                recording: nil,
+                replyMessage: nil
+            )
+        }
+    }
     private var cancellables = Set<AnyCancellable>()
     
     init(character: Character) {
@@ -23,9 +40,17 @@ final class ChatViewModel: ObservableObject {
     }
 
     func send() {
-        let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        send(text: inputText)
+    }
+    
+    func send(draft: DraftMessage) {
+        // Draft may contain attachments, but we only handle plain text for now
+        send(text: draft.text)
+    }
+    
+    func send(text: String) {
+        let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        inputText = ""
         let userMsg = ChatMessage(text: text, isUser: true)
         messages.append(userMsg)
 
