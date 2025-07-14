@@ -7,12 +7,14 @@ public struct ChatMessage: Identifiable, Codable, Equatable {
     public let timestamp: Date
     public let costUSD: Double?
     public let responseTime: TimeInterval?
+    public let speaker: String?
 
-    public init(id: UUID = .init(), text: String, isUser: Bool, timestamp: Date = .init(), costUSD: Double? = nil, responseTime: TimeInterval? = nil) {
+    public init(id: UUID = .init(), text: String, isUser: Bool, speaker: String? = nil, timestamp: Date = .init(), costUSD: Double? = nil, responseTime: TimeInterval? = nil) {
         self.id = id
         self.text = text
         self.isUser = isUser
         self.timestamp = timestamp
+        self.speaker = speaker
         self.costUSD = costUSD
         self.responseTime = responseTime
     }

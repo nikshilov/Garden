@@ -11,14 +11,15 @@ final class ChatViewModel: ObservableObject {
     private var typingPlaceholderId: UUID?
     @Published var totalCostUSD: Double = 0.0
     
-    let characterName: String
-    let characterId: String
+    var characterName: String = "Garden"
+    // characterId removed – router decides speaker
 
     private let api = APIClient()
     // Map ChatMessage to ExyteChat.Message for ChatView
     var exyteMessages: [ExyteChat.Message] {
         messages.map { msg in
-            let user = msg.isUser ? ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true) : ExyteChat.User(id: "bot", name: characterName, avatarURL: nil, isCurrentUser: false)
+            let botName = msg.speaker ?? characterName
+            let user = msg.isUser ? ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true) : ExyteChat.User(id: "bot", name: botName, avatarURL: nil, isCurrentUser: false)
             let text = msg.text
             return ExyteChat.Message(
                 id: msg.id.uuidString,
@@ -41,19 +42,18 @@ final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     
-    private static func cleanBotText(_ text: String) -> String {
-        let pattern = "^\\*\\*[^*]+\\*\\*: ?"
-        return text.replacingOccurrences(of: pattern, with: "", options: [.regularExpression])
+    private static func parseSpeakerAndText(_ raw: String) -> (String?, String) {
+        let regex = try? NSRegularExpression(pattern: "^\\*\\*([^*]+)\\*\\*: ?", options: [])
+        if let match = regex?.firstMatch(in: raw, options: [], range: NSRange(location: 0, length: raw.utf16.count)),
+           let nameRange = Range(match.range(at: 1), in: raw) {
+            let name = String(raw[nameRange])
+            let clean = regex!.stringByReplacingMatches(in: raw, options: [], range: NSRange(location: 0, length: raw.utf16.count), withTemplate: "")
+            return (name, clean.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return (nil, raw)
     }
     
-    init(character: Character) {
-        self.characterName = character.displayName
-        self.characterId = character.id
-    }
     
-    convenience init() {
-        self.init(character: Character(id: "eve", displayName: "Eve"))
-    }
 
     func send() {
         send(text: inputText)
@@ -80,10 +80,10 @@ final class ChatViewModel: ObservableObject {
         messages.append(placeholder)
             defer { isTyping = false }
             do {
-                let response = try await api.sendMessage(text: text, characterId: characterId)
+                let response = try await api.sendMessage(text: text, characterId: nil)
                 let duration = Date().timeIntervalSince(startTime)
-                let cleanText = ChatViewModel.cleanBotText(response.text)
-                let botMsg = ChatMessage(text: cleanText, isUser: false, costUSD: response.cost_total_usd, responseTime: duration)
+                let (speaker, cleanText) = ChatViewModel.parseSpeakerAndText(response.text)
+                let botMsg = ChatMessage(text: cleanText, isUser: false, speaker: speaker, costUSD: response.cost_total_usd, responseTime: duration)
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
                     messages[idx] = botMsg
                 } else {
