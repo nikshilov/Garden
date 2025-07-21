@@ -1,18 +1,23 @@
 """Thin wrapper around a small LLM to produce TL;DR summaries.
-For now we call the same get_llm() helper but force model="phi3-mini".
-This keeps dependency minimal; replace with local model later.
+
+The summarizer uses a lightweight model specified by the `SUMMARIZER_MODEL` environment variable.
+If the variable is not set, it falls back to `gpt-4o-mini`.
 """
 from __future__ import annotations
 
 from typing import List, Dict
+import os
 
 from garden_graph.config import get_llm
 
 
+# Resolve which model to use for summarisation once at import time
+DEFAULT_SUMMARIZER_MODEL = os.getenv("SUMMARIZER_MODEL", "gpt-4o-mini")
+
 class Summarizer:
     _instance = None
 
-    def __init__(self, model: str = "phi3-mini", temperature: float = 0.3):
+    def __init__(self, model: str = DEFAULT_SUMMARIZER_MODEL, temperature: float = 0.3):
         self.llm = get_llm(model, temperature=temperature)
 
     @classmethod
