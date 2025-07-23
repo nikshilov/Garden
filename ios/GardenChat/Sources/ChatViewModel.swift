@@ -5,6 +5,8 @@ import GardenCore
 
 @MainActor
 final class ChatViewModel: ObservableObject {
+    private let chatsStore: ChatsStore
+    private let chatId: String
     @Published var messages: [ChatMessage] = []
     @Published var inputText: String = ""
     @Published var isTyping: Bool = false
@@ -17,9 +19,15 @@ final class ChatViewModel: ObservableObject {
     private let api = APIClient()
     // Map ChatMessage to ExyteChat.Message for ChatView
     var exyteMessages: [ExyteChat.Message] {
-        messages.map { msg in
+        let mapped = messages.map { msg in
             let botName = msg.speaker ?? characterName
-            let user = msg.isUser ? ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true) : ExyteChat.User(id: "bot", name: botName, avatarURL: nil, isCurrentUser: false)
+            let user: ExyteChat.User
+            if msg.isUser {
+                user = ExyteChat.User(id: "user", name: "You", avatarURL: nil, isCurrentUser: true)
+            } else {
+                // Use speaker name as unique id so different characters render separate bubbles
+                user = ExyteChat.User(id: botName.lowercased(), name: botName, avatarURL: nil, isCurrentUser: false)
+            }
             let text = msg.text
             return ExyteChat.Message(
                 id: msg.id.uuidString,
@@ -32,6 +40,8 @@ final class ChatViewModel: ObservableObject {
                 replyMessage: nil
             )
         }
+
+        return mapped
     }
     
     // Retrieve cost & time for Exyte message id
@@ -42,6 +52,29 @@ final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     
+    private static func parseMultiSpeakerResponse(_ text: String, totalCost: Double?, totalDuration: TimeInterval?) -> [ChatMessage] {
+        let pattern = #"\*\*(.*?)\*\*:\s*(.*?(?=\n\*\*|$))"#
+        let regex = try! NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
+        let nsString = text as NSString
+        let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsString.length))
+
+        if matches.isEmpty {
+            // Fallback for single, non-formatted message
+            let (speaker, cleanText) = parseSpeakerAndText(text)
+            return [ChatMessage(text: cleanText, isUser: false, speaker: speaker, costUSD: totalCost, responseTime: totalDuration)]
+        }
+
+        let messageCount = matches.count
+        let costPerMessage = messageCount > 0 ? (totalCost ?? 0) / Double(messageCount) : totalCost
+        let timePerMessage = messageCount > 0 ? (totalDuration ?? 0) / Double(messageCount) : totalDuration
+
+        return matches.map { match in
+            let speaker = nsString.substring(with: match.range(at: 1))
+            let content = nsString.substring(with: match.range(at: 2)).trimmingCharacters(in: .whitespacesAndNewlines)
+            return ChatMessage(text: content, isUser: false, speaker: speaker, costUSD: costPerMessage, responseTime: timePerMessage)
+        }
+    }
+
     private static func parseSpeakerAndText(_ raw: String) -> (String?, String) {
         let regex = try? NSRegularExpression(pattern: "^\\*\\*([^*]+)\\*\\*: ?", options: [])
         if let match = regex?.firstMatch(in: raw, options: [], range: NSRange(location: 0, length: raw.utf16.count)),
@@ -55,6 +88,17 @@ final class ChatViewModel: ObservableObject {
     
     
 
+    // MARK: - Init
+    init(store: ChatsStore, chatId: String = "world") {
+        self.chatsStore = store
+        self.chatId = chatId
+    }
+    
+    convenience init() {
+        self.init(store: ChatsStore(), chatId: "world")
+    }
+
+    // MARK: - Actions
     func send() {
         send(text: inputText)
     }
@@ -64,39 +108,70 @@ final class ChatViewModel: ObservableObject {
         send(text: draft.text)
     }
     
+    // Reset chat by clearing messages & cost
+    func resetSession() {
+        messages.removeAll()
+        totalCostUSD = 0
+        typingPlaceholderId = nil
+#if DEBUG
+        print("ChatViewModel: session reset")
+#endif
+    }
+
     func send(text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let userMsg = ChatMessage(text: text, isUser: true)
         messages.append(userMsg)
+        messages = messages
+        objectWillChange.send()
+        print("🟢 Sent user message: \(text)")
+        chatsStore.updateLastMessage(chatId: chatId, text: text)
 
         let startTime = Date()
-        Task {
+        Task { @MainActor in
             isTyping = true
-        // Add placeholder loader message
-        let placeholderId = UUID()
-        typingPlaceholderId = placeholderId
-        let placeholder = ChatMessage(id: placeholderId, text: "", isUser: false)
-        messages.append(placeholder)
+            // Add placeholder loader message
+            let placeholderId = UUID()
+            typingPlaceholderId = placeholderId
+            let placeholder = ChatMessage(id: placeholderId, text: "…", isUser: false)
+            messages.append(placeholder)
+            messages = messages
+            print("⏳ Awaiting server reply…")
             defer { isTyping = false }
             do {
                 let response = try await api.sendMessage(text: text, characterId: nil)
                 let duration = Date().timeIntervalSince(startTime)
-                let (speaker, cleanText) = ChatViewModel.parseSpeakerAndText(response.text)
-                let botMsg = ChatMessage(text: cleanText, isUser: false, speaker: speaker, costUSD: response.cost_total_usd, responseTime: duration)
+                let botMessages = ChatViewModel.parseMultiSpeakerResponse(response.text, totalCost: response.cost_total_usd, totalDuration: duration)
+                print("🟣 Server replied with \(botMessages.count) messages.")
+
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
-                    messages[idx] = botMsg
+                    // Replace placeholder with the first message, append the rest
+                    if let firstMsg = botMessages.first {
+                        messages[idx] = firstMsg
+                        if botMessages.count > 1 {
+                            messages.append(contentsOf: botMessages.dropFirst())
+                        }
+                    }
                 } else {
-                    messages.append(botMsg)
+                    messages.append(contentsOf: botMessages)
                 }
+                
+                messages = messages
+                objectWillChange.send()
                 typingPlaceholderId = nil
                 totalCostUSD = response.cost_total_usd
+                chatsStore.incrementUnread(chatId: chatId)
+                let lastMessageText = botMessages.map { "\($0.speaker ?? ""): \($0.text)" }.joined(separator: "\n")
+                chatsStore.updateLastMessage(chatId: chatId, text: lastMessageText)
             } catch {
                 let errMsg = ChatMessage(text: "Error: Could not connect to the server.", isUser: false)
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
                     messages[idx] = errMsg
+                     messages = messages
                 } else {
                     messages.append(errMsg)
+                 messages = messages
                 }
                 typingPlaceholderId = nil
             }

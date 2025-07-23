@@ -3,24 +3,29 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 63;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0A14B03DD11E9E10CF2191E1 /* Chat+Exyte.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2F8A9587A74C6CA27BAA65D /* Chat+Exyte.swift */; };
 		145B282795A25BE24936492B /* CharactersStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECAC91375B7980C6DC327899 /* CharactersStore.swift */; };
 		208A888F57D5FB575ECFDDF3 /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8317CE6269196FABDAF7CFDF /* Config.swift */; };
+		27F4E52C648E17BDE514313A /* ChatBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BD69B6D951B0F0E243375F0 /* ChatBubble.swift */; };
 		29B5182A11AAB721C1C06B70 /* APIClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */; };
 		79F2ABEC946ED6D20A7AD576 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 715E738C4FDAE99652B1767C /* DashboardView.swift */; };
 		88E2647EE19AC58942E1F684 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8012A334C6CFCE8A85EEB368 /* ContentView.swift */; };
 		8D26D2AA765E168E09467AD2 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25B9950FA0AEEA211DA4B6A3 /* Models.swift */; };
 		8EDE9E46773CFCCA5BE4407E /* GardenCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 5759FAAE50EA5E934A3028F3 /* GardenCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		9099893E0A681D9FE5026553 /* CharactersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61329F571D7FE55C213D4CAC /* CharactersListView.swift */; };
+		9F55AE2BCA288F3C8485AD72 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24776D0B68B8F5BD9FA8251B /* ChatModels.swift */; };
 		A35FFEC366D4E596707A6499 /* ChatsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F015EADD3E0037F3263DF5B7 /* ChatsListView.swift */; };
 		D4A8EC954FEC744FBED48519 /* Character.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03C70369F2C4034110C5AFC /* Character.swift */; };
+		D7CBF4709828C18E8F39CCC5 /* NewChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2C2CCE83E9D8A69B9687C4 /* NewChatView.swift */; };
 		DB5D72898A49625BA87172A9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89ACFBE72AFD9C14031FD485 /* SettingsView.swift */; };
 		E9308770E320D602BEB19552 /* ExyteChat in Frameworks */ = {isa = PBXBuildFile; productRef = F2CEFC42E22191B005ED5DE0 /* ExyteChat */; };
 		EE1CADF592425A10A747B1FC /* GardenCore.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 5759FAAE50EA5E934A3028F3 /* GardenCore.framework */; };
 		F2271948EADD02116282D909 /* ChatViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */; };
+		F81E501EE7E9FD004C975A82 /* LLMModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7714D60FEB90445F322B460A /* LLMModel.swift */; };
 		FF0D83B63B99233EE5394D80 /* GardenChatApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */; };
 		FF7F0A455788D9D813E3E6D9 /* CharactersCatalogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91BB4C85468D8F89B17AC953 /* CharactersCatalogView.swift */; };
 /* End PBXBuildFile section */
@@ -51,20 +56,25 @@
 
 /* Begin PBXFileReference section */
 		1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GardenChatApp.swift; sourceTree = "<group>"; };
+		24776D0B68B8F5BD9FA8251B /* ChatModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatModels.swift; sourceTree = "<group>"; };
 		25B9950FA0AEEA211DA4B6A3 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		5759FAAE50EA5E934A3028F3 /* GardenCore.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GardenCore.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		61329F571D7FE55C213D4CAC /* CharactersListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharactersListView.swift; sourceTree = "<group>"; };
 		715E738C4FDAE99652B1767C /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
+		7714D60FEB90445F322B460A /* LLMModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LLMModel.swift; sourceTree = "<group>"; };
 		8012A334C6CFCE8A85EEB368 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		8317CE6269196FABDAF7CFDF /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		89ACFBE72AFD9C14031FD485 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatViewModel.swift; sourceTree = "<group>"; };
 		91BB4C85468D8F89B17AC953 /* CharactersCatalogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharactersCatalogView.swift; sourceTree = "<group>"; };
-		A127B843E2E00962DC1066CB /* GardenChat.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GardenChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9BD69B6D951B0F0E243375F0 /* ChatBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBubble.swift; sourceTree = "<group>"; };
+		A127B843E2E00962DC1066CB /* GardenChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GardenChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		B03C70369F2C4034110C5AFC /* Character.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Character.swift; sourceTree = "<group>"; };
 		C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
+		E2F8A9587A74C6CA27BAA65D /* Chat+Exyte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Chat+Exyte.swift"; sourceTree = "<group>"; };
 		ECAC91375B7980C6DC327899 /* CharactersStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharactersStore.swift; sourceTree = "<group>"; };
 		F015EADD3E0037F3263DF5B7 /* ChatsListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatsListView.swift; sourceTree = "<group>"; };
+		FE2C2CCE83E9D8A69B9687C4 /* NewChatView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NewChatView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +114,7 @@
 				C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */,
 				B03C70369F2C4034110C5AFC /* Character.swift */,
 				8317CE6269196FABDAF7CFDF /* Config.swift */,
+				7714D60FEB90445F322B460A /* LLMModel.swift */,
 				25B9950FA0AEEA211DA4B6A3 /* Models.swift */,
 			);
 			name = Sources;
@@ -116,11 +127,15 @@
 				91BB4C85468D8F89B17AC953 /* CharactersCatalogView.swift */,
 				61329F571D7FE55C213D4CAC /* CharactersListView.swift */,
 				ECAC91375B7980C6DC327899 /* CharactersStore.swift */,
+				E2F8A9587A74C6CA27BAA65D /* Chat+Exyte.swift */,
+				9BD69B6D951B0F0E243375F0 /* ChatBubble.swift */,
+				24776D0B68B8F5BD9FA8251B /* ChatModels.swift */,
 				F015EADD3E0037F3263DF5B7 /* ChatsListView.swift */,
 				91725B11C519A99E4C0ABE75 /* ChatViewModel.swift */,
 				8012A334C6CFCE8A85EEB368 /* ContentView.swift */,
 				715E738C4FDAE99652B1767C /* DashboardView.swift */,
 				1AFFF066C3DFCEA322D0C55E /* GardenChatApp.swift */,
+				FE2C2CCE83E9D8A69B9687C4 /* NewChatView.swift */,
 				89ACFBE72AFD9C14031FD485 /* SettingsView.swift */,
 			);
 			name = Sources;
@@ -176,6 +191,8 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
 			};
 			buildConfigurationList = A252408967E7D2636E42A91F /* Build configuration list for PBXProject "GardenChat" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -190,6 +207,7 @@
 			packageReferences = (
 				C7E0BB37EC9A06FE3CC344B1 /* XCRemoteSwiftPackageReference "Chat" */,
 			);
+			preferredProjectObjectVersion = 54;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -207,6 +225,7 @@
 				29B5182A11AAB721C1C06B70 /* APIClient.swift in Sources */,
 				D4A8EC954FEC744FBED48519 /* Character.swift in Sources */,
 				208A888F57D5FB575ECFDDF3 /* Config.swift in Sources */,
+				F81E501EE7E9FD004C975A82 /* LLMModel.swift in Sources */,
 				8D26D2AA765E168E09467AD2 /* Models.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -218,11 +237,15 @@
 				FF7F0A455788D9D813E3E6D9 /* CharactersCatalogView.swift in Sources */,
 				9099893E0A681D9FE5026553 /* CharactersListView.swift in Sources */,
 				145B282795A25BE24936492B /* CharactersStore.swift in Sources */,
+				0A14B03DD11E9E10CF2191E1 /* Chat+Exyte.swift in Sources */,
+				27F4E52C648E17BDE514313A /* ChatBubble.swift in Sources */,
+				9F55AE2BCA288F3C8485AD72 /* ChatModels.swift in Sources */,
 				F2271948EADD02116282D909 /* ChatViewModel.swift in Sources */,
 				A35FFEC366D4E596707A6499 /* ChatsListView.swift in Sources */,
 				88E2647EE19AC58942E1F684 /* ContentView.swift in Sources */,
 				79F2ABEC946ED6D20A7AD576 /* DashboardView.swift in Sources */,
 				FF0D83B63B99233EE5394D80 /* GardenChatApp.swift in Sources */,
+				D7CBF4709828C18E8F39CCC5 /* NewChatView.swift in Sources */,
 				DB5D72898A49625BA87172A9 /* SettingsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -408,7 +431,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 44N4NZ86S5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GardenChat/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -426,7 +448,6 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = 44N4NZ86S5;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = GardenChat/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

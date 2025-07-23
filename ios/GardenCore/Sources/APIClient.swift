@@ -30,7 +30,37 @@ public final class APIClient {
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         var payload: [String: Any] = ["text": text]
         if let cid = characterId { payload["character_id"] = cid }
-        req.httpBody = try JSONSerialization.data(withJSONObject: payload)
+        if let model = UserDefaults.standard.string(forKey: "selectedModel") {
+#if DEBUG
+            print("APIClient: selectedModel = \(model)")
+#endif
+            // Fallback to default if saved value is not in supported list
+            if model == LLMModel.phi3Mini.rawValue {
+#if DEBUG
+                print("APIClient: model phi3-mini unsupported, overriding to \(LLMModel.gpt4o.rawValue)")
+#endif
+                payload["model"] = LLMModel.gpt4o.rawValue
+            } else if LLMModel(rawValue: model) == nil {
+#if DEBUG
+                print("APIClient: unknown model value, fallback to \(LLMModel.gpt4o.rawValue)")
+#endif
+                payload["model"] = LLMModel.gpt4o.rawValue
+            } else {
+                payload["model"] = model
+            }
+        } else {
+#if DEBUG
+            print("APIClient: no selectedModel, using default \(LLMModel.gpt4o.rawValue)")
+#endif
+            payload["model"] = LLMModel.gpt4o.rawValue
+        }
+        let bodyData = try JSONSerialization.data(withJSONObject: payload)
+#if DEBUG
+        if let bodyStr = String(data: bodyData, encoding: .utf8) {
+            print("APIClient: request body = \(bodyStr)")
+        }
+#endif
+        req.httpBody = bodyData
 
         let (data, resp) = try await session.data(for: req)
         #if DEBUG
