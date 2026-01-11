@@ -1,0 +1,95 @@
+Garden Telegram Bot & Mini App — PRD
+
+Status: Draft for review (Doc-first)
+Owner: GardenCore
+Last updated: 2025-08-25
+
+1) Purpose & Goals
+- Build two Telegram bots, one persona each: Eve and Adam. DM-only MVP.
+- Deterministic prompt assembly via Garden LangGraph Character pipeline.
+- Per-user memory & mood; service messages when memory/relationship change.
+- Settings: model selection, temperature, view/clear memory, toggles.
+- Mini App for richer settings UI. Cost visibility (command + daily summary).
+
+2) Non-goals (MVP)
+- Group chats, inline mode, billing/subscriptions, marketplace.
+- Intimacy Mode (postponed for policy; optional future with consent).
+
+3) Architecture Overview
+- Two bots via separate bot tokens and webhook paths:
+  - POST /tg/webhook/eve
+  - POST /tg/webhook/adam
+- Orchestration: Character.respond() prompt assembly; no router LLM in MVP.
+- Persistence per (persona, user_id) under backend/data/telegram/...
+- Settings stored per-user (model, temperature, service_messages, cost_summaries, language).
+- Mini App served at /tg/app/ with WebApp auth; backend JSON APIs.
+
+4) Bot UX & Commands
+- /start — greet, persona intro, hint /help and /settings.
+- /help — list commands + link to Mini App.
+- /settings — inline keyboard: toggles + open Mini App.
+- /model — choose model from backend list.
+- /memory — top-3 recent memories; buttons: View all (Mini App), Clear (confirm).
+- /clear — confirm to clear memory for this persona.
+- /cost — show session + monthly USD + tokens.
+- /export — export JSON bundle of chat + memory.
+
+Inline toggles: service_messages ON/OFF, cost_summaries ON/OFF, open Mini App.
+
+5) Service Messages (System Notifications)
+- Memory added: "📌 Память добавлена: \"{summary}\" (вес {w})"
+- Relationship axis delta: "❤️ Доверие +0.08 → 0.71" (top axes only)
+- Mood shift (optional): "🌤️ Настроение обновлено: валентность +0.2"
+- Cost checkpoint: "💰 Сессия: 1,230 ток. ≈ $0.004 | Месяц: $0.37"
+- Controls: per-user toggles; rate-limit and collate deltas.
+
+6) Mini App (Settings UI)
+Screens:
+- Model & Generation: model select (gpt-4o, gpt-4.1-turbo, sonnet-3.7, etc.), temperature.
+- Memory: list recent, search, clear (confirm).
+- Notifications: service_messages, cost_summaries.
+- About persona: description, last mood snapshot.
+APIs:
+- GET /tg/api/settings?persona=&user_id=
+- POST /tg/api/settings/update
+- GET /tg/api/memory/list?persona=&user_id=&q=&limit=
+- POST /tg/api/memory/clear
+Auth: verify Telegram WebApp init data.
+
+7) Prompt Assembly & Context
+- Persona system prompt per bot; mood prefix per user.
+- Memory: external MemoryManager if present; else top-K decayed memories.
+- Episodic retrieval via EpisodicStore.search(..., k=3).
+- Short-term window ~5–8 turns; deterministic ordering.
+
+8) Cost Tracking
+- Record per-call usage; /cost and daily summary (if enabled).
+- Persist per user; export includes cost metadata.
+
+9) Data Model (Telegram)
+- UserSettings: model, temperature, service_messages, cost_summaries, language.
+- MemoryRecord, RelationshipProfile (subset of docs/emotional_memory.md).
+- CostRecord per docs/cost_tracker.md.
+
+10) API & Webhook Contracts
+- Telegram Update JSON (DM only). Replies in Markdown. Service messages have icons/prefix.
+- Mini App uses JSON over HTTPS; tie to user_id.
+
+11) Security & Privacy
+- ENV for bot tokens; validate WebApp auth hash; PII minimization; /export and /clear.
+
+12) Metrics & Success
+- P95 DM reply < 3s; ≥80% perceive memory influence; failed deliveries <1%; service toggle opt-out <30%.
+
+13) Milestones (MVP)
+- M1: Two bots respond in DM; persona prompts wired.
+- M2: Per-user memory save/retrieve; service messages for memory/relationship.
+- M3: Settings (inline + Mini App basic) with model selection and toggles.
+- M4: Cost tracking + /cost + export.
+- M5: Tests + CI + deploy (staging → prod).
+
+Acceptance
+- Deterministic prompt assembly; bounded retrieval.
+- Settings persist and change behavior.
+- Service messages accurate and rate-limited.
+- Export/clear safe and tested.

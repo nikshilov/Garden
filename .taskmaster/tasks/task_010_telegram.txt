@@ -1,0 +1,140 @@
+# Task ID: 10
+# Title: Implement Mini App Backend APIs
+# Status: pending
+# Dependencies: 4, 6, 9
+# Priority: medium
+# Description: Create the backend APIs needed for the Mini App to fetch and update settings and memory.
+# Details:
+Implement the following API endpoints:
+
+1. `GET /tg/api/settings` - Fetch user settings
+   - Query parameters: persona, user_id
+
+2. `POST /tg/api/settings/update` - Update user settings
+   - Body: user_id, settings object
+
+3. `GET /tg/api/memory/list` - List user memories
+   - Query parameters: persona, user_id, q (search), limit
+
+4. `POST /tg/api/memory/clear` - Clear user memories
+   - Body: persona, user_id
+
+Implement authentication middleware to verify Telegram WebApp init data.
+
+Example implementation:
+```python
+from fastapi import FastAPI, Request, Response, Depends, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+import hmac
+import hashlib
+import json
+from urllib.parse import parse_qsl
+
+app = FastAPI()
+
+# Add CORS middleware for development
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, restrict to your domain
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Telegram auth verification
+def verify_telegram_data(init_data: str):
+    # Parse the data
+    data_dict = dict(parse_qsl(init_data))
+    
+    if "hash" not in data_dict:
+        raise HTTPException(status_code=401, detail="Hash not found in init data")
+    
+    # Get the hash from the data
+    received_hash = data_dict.pop("hash")
+    
+    # Sort the data alphabetically
+    data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_dict.items()))
+    
+    # Create a secret key by hashing the bot token with SHA256
+    secret_key = hashlib.sha256(BOT_TOKEN.encode()).digest()
+    
+    # Calculate the HMAC-SHA-256 signature
+    calculated_hash = hmac.new(
+        secret_key,
+        data_check_string.encode(),
+        hashlib.sha256
+    ).hexdigest()
+    
+    # Compare the received hash with the calculated one
+    if calculated_hash != received_hash:
+        raise HTTPException(status_code=401, detail="Invalid hash")
+    
+    # Extract user data
+    user_data = json.loads(data_dict.get("user", "{}"))
+    return user_data
+
+# Dependency for auth
+async def get_current_user(request: Request):
+    init_data = request.headers.get("X-Telegram-Init-Data")
+    if not init_data:
+        raise HTTPException(status_code=401, detail="Init data not provided")
+    
+    return verify_telegram_data(init_data)
+
+# API endpoints
+@app.get("/tg/api/settings")
+async def get_settings(persona: str, user_id: int, current_user = Depends(get_current_user)):
+    # Verify the requested user_id matches the authenticated user
+    if current_user.get("id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access these settings")
+    
+    settings = settings_manager.get_settings(persona, user_id)
+    return settings
+
+@app.post("/tg/api/settings/update")
+async def update_settings(request: Request, current_user = Depends(get_current_user)):
+    data = await request.json()
+    user_id = data.get("user_id")
+    updates = data.get("settings", {})
+    
+    # Verify the requested user_id matches the authenticated user
+    if current_user.get("id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to update these settings")
+    
+    try:
+        updated_settings = settings_manager.update_settings(user_id, updates)
+        return updated_settings
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/tg/api/memory/list")
+async def list_memories(persona: str, user_id: int, q: str = None, limit: int = 20, current_user = Depends(get_current_user)):
+    # Verify the requested user_id matches the authenticated user
+    if current_user.get("id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to access these memories")
+    
+    memories = memory_manager.get_memories(persona, user_id, limit=limit)
+    
+    # Filter by search query if provided
+    if q:
+        q = q.lower()
+        memories = [m for m in memories if q in m.get("content", "").lower() or q in m.get("summary", "").lower()]
+    
+    return {"memories": memories}
+
+@app.post("/tg/api/memory/clear")
+async def clear_memories(request: Request, current_user = Depends(get_current_user)):
+    data = await request.json()
+    persona = data.get("persona")
+    user_id = data.get("user_id")
+    
+    # Verify the requested user_id matches the authenticated user
+    if current_user.get("id") != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized to clear these memories")
+    
+    success = memory_manager.clear_memories(persona, user_id)
+    return {"success": success}
+```
+
+# Test Strategy:
+Test each API endpoint with valid and invalid authentication. Test settings retrieval and update. Test memory listing with and without search parameters. Test memory clearing. Test error handling for invalid requests. Test with mock data to verify correct responses.

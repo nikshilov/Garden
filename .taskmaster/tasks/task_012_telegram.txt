@@ -1,0 +1,111 @@
+# Task ID: 12
+# Title: Implement Export and Clear Functionality
+# Status: pending
+# Dependencies: 4, 7
+# Priority: medium
+# Description: Create functionality to export chat history and memory, and to safely clear user data.
+# Details:
+Implement the following features:
+
+1. Export functionality:
+   - Export chat history, memories, and relationship data as JSON
+   - Include cost metadata
+   - Format for easy readability
+
+2. Clear functionality:
+   - Safely clear memories for a specific persona
+   - Require confirmation before clearing
+   - Maintain audit log of clear operations
+
+Example implementation:
+```python
+class DataManager:
+    def __init__(self, data_dir="backend/data/telegram"):
+        self.data_dir = data_dir
+    
+    def export_user_data(self, persona, user_id):
+        # Collect all user data
+        user_path = os.path.join(self.data_dir, persona, str(user_id))
+        if not os.path.exists(user_path):
+            return {"error": "No data found for this user"}
+        
+        # Get chat history
+        chat_history = []
+        chat_file = os.path.join(user_path, "chat_history.jsonl")
+        if os.path.exists(chat_file):
+            with open(chat_file, "r") as f:
+                for line in f:
+                    chat_history.append(json.loads(line))
+        
+        # Get memories
+        memories = []
+        memories_file = os.path.join(user_path, "memories.jsonl")
+        if os.path.exists(memories_file):
+            with open(memories_file, "r") as f:
+                for line in f:
+                    memories.append(json.loads(line))
+        
+        # Get relationship data
+        relationship = {}
+        relationship_file = os.path.join(user_path, "relationship.json")
+        if os.path.exists(relationship_file):
+            with open(relationship_file, "r") as f:
+                relationship = json.load(f)
+        
+        # Get cost data
+        costs = []
+        cost_file = os.path.join(self.data_dir, "costs", f"{user_id}.jsonl")
+        if os.path.exists(cost_file):
+            with open(cost_file, "r") as f:
+                for line in f:
+                    costs.append(json.loads(line))
+        
+        # Compile export data
+        export_data = {
+            "persona": persona,
+            "user_id": user_id,
+            "export_date": datetime.now().isoformat(),
+            "chat_history": chat_history,
+            "memories": memories,
+            "relationship": relationship,
+            "costs": costs
+        }
+        
+        return export_data
+    
+    def clear_user_memories(self, persona, user_id):
+        # Path to user memories
+        memories_file = os.path.join(self.data_dir, persona, str(user_id), "memories.jsonl")
+        if not os.path.exists(memories_file):
+            return {"success": False, "error": "No memories found"}
+        
+        # Backup before clearing
+        backup_dir = os.path.join(self.data_dir, "backups", persona, str(user_id))
+        os.makedirs(backup_dir, exist_ok=True)
+        
+        backup_file = os.path.join(backup_dir, f"memories_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jsonl")
+        shutil.copy2(memories_file, backup_file)
+        
+        # Clear the memories file
+        with open(memories_file, "w") as f:
+            pass  # Empty the file
+        
+        # Log the clear operation
+        log_dir = os.path.join(self.data_dir, "logs")
+        os.makedirs(log_dir, exist_ok=True)
+        
+        with open(os.path.join(log_dir, "clear_operations.jsonl"), "a") as f:
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "operation": "clear_memories",
+                "persona": persona,
+                "user_id": user_id,
+                "backup_file": backup_file
+            }
+            f.write(json.dumps(log_entry) + "\n")
+        
+        return {"success": True}
+```
+
+# Test Strategy:
+Test export functionality with various user data scenarios. Verify exported JSON format is valid and complete. Test clear functionality with confirmation. Verify data is properly backed up before clearing. Test audit logging of clear operations. Test error handling for missing data.

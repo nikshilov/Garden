@@ -88,5 +88,25 @@
     "completed": true,
     "user_responded": true,
     "created_at": "2025-06-21T13:41:50.397779+00:00"
+  },
+  "05cdb541-9cc5-4b16-99cc-fc969aa7db13": {
+    "id": "05cdb541-9cc5-4b16-99cc-fc969aa7db13",
+    "character_id": "eve",
+    "event_time": "2026-01-11T11:56:32.743955+00:00",
+    "description": "Emotional memory threshold reached – consider updating system prompt.",
+    "reminder_time": null,
+    "completed": true,
+    "user_responded": true,
+    "created_at": "2026-01-11T11:54:35.628476+00:00"
+  },
+  "d312dd45-9b8f-47f9-8b80-eb42604280a0": {
+    "id": "d312dd45-9b8f-47f9-8b80-eb42604280a0",
+    "character_id": "eve",
+    "event_time": "2026-01-11T16:45:16.119038+00:00",
+    "description": "Emotional memory threshold reached – consider updating system prompt.",
+    "reminder_time": null,
+    "completed": true,
+    "user_responded": true,
+    "created_at": "2026-01-11T16:43:18.963709+00:00"
   }
 }

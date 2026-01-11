@@ -1,0 +1,135 @@
+# Task ID: 9
+# Title: Implement Mini App Frontend
+# Status: pending
+# Dependencies: 1
+# Priority: medium
+# Description: Create the frontend for the Telegram Mini App with settings UI.
+# Details:
+Build a responsive web application that serves as the Mini App frontend with the following screens:
+
+1. Model & Generation:
+   - Model selection dropdown (gpt-4o, gpt-4.1-turbo, sonnet-3.7, etc.)
+   - Temperature slider (0.0-1.0)
+
+2. Memory:
+   - List of recent memories with search functionality
+   - Clear button with confirmation dialog
+
+3. Notifications:
+   - Toggle switches for service_messages and cost_summaries
+
+4. About persona:
+   - Description of the current persona
+   - Last mood snapshot visualization
+
+Use Telegram's WebApp API for authentication and integration. The app should be responsive and work well on mobile devices.
+
+Example implementation structure:
+```javascript
+// index.js - Entry point
+import React from 'react';
+import ReactDOM from 'react-dom';
+import App from './App';
+
+ReactDOM.render(<App />, document.getElementById('root'));
+
+// App.js - Main component
+import React, { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import Navbar from './components/Navbar';
+import ModelSettings from './screens/ModelSettings';
+import MemoryView from './screens/MemoryView';
+import NotificationSettings from './screens/NotificationSettings';
+import AboutPersona from './screens/AboutPersona';
+import { verifyTelegramWebAppData } from './utils/auth';
+import { fetchSettings, updateSettings } from './api/settings';
+
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userData, setUserData] = useState(null);
+  const [settings, setSettings] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Initialize Telegram WebApp
+    const tg = window.Telegram.WebApp;
+    tg.expand();
+    
+    // Verify authentication
+    if (tg.initData) {
+      const authResult = verifyTelegramWebAppData(tg.initData);
+      if (authResult.verified) {
+        setIsAuthenticated(true);
+        setUserData(authResult.user);
+        
+        // Fetch user settings
+        const urlParams = new URLSearchParams(window.location.search);
+        const persona = urlParams.get('persona') || 'eve';
+        
+        fetchSettings(persona, authResult.user.id)
+          .then(data => {
+            setSettings(data);
+            setLoading(false);
+          })
+          .catch(err => {
+            console.error('Error fetching settings:', err);
+            setLoading(false);
+          });
+      } else {
+        setLoading(false);
+      }
+    } else {
+      setLoading(false);
+    }
+  }, []);
+
+  const handleSettingsUpdate = (updates) => {
+    if (!isAuthenticated || !userData) return;
+    
+    updateSettings(userData.id, updates)
+      .then(updatedSettings => {
+        setSettings(updatedSettings);
+        // Notify the Telegram app that data has changed
+        window.Telegram.WebApp.MainButton.setText('Settings Saved');
+        window.Telegram.WebApp.MainButton.show();
+        setTimeout(() => {
+          window.Telegram.WebApp.MainButton.hide();
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Error updating settings:', err);
+      });
+  };
+
+  if (loading) {
+    return <div className="loading">Loading...</div>;
+  }
+
+  if (!isAuthenticated) {
+    return <div className="error">Authentication failed. Please open this app from Telegram.</div>;
+  }
+
+  return (
+    <BrowserRouter>
+      <div className="app">
+        <Navbar />
+        <div className="content">
+          <Routes>
+            <Route path="/" element={<ModelSettings settings={settings} onUpdate={handleSettingsUpdate} />} />
+            <Route path="/memory" element={<MemoryView userData={userData} />} />
+            <Route path="/notifications" element={<NotificationSettings settings={settings} onUpdate={handleSettingsUpdate} />} />
+            <Route path="/about" element={<AboutPersona userData={userData} />} />
+          </Routes>
+        </div>
+      </div>
+    </BrowserRouter>
+  );
+}
+
+export default App;
+```
+
+Implement the necessary components and screens as outlined above.
+
+# Test Strategy:
+Test the Mini App in both desktop and mobile browsers. Test Telegram WebApp integration and authentication. Test all UI components (dropdowns, sliders, toggles). Test API integration for fetching and updating settings. Test memory search functionality. Test responsive design at different screen sizes.

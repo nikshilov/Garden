@@ -1,0 +1,101 @@
+# Task ID: 5
+# Title: Implement Service Messages for Memory and Relationship Changes
+# Status: pending
+# Dependencies: 4
+# Priority: medium
+# Description: Create a system to generate and send service messages when memory is added or relationship axes change.
+# Details:
+Implement a ServiceMessageManager that:
+
+1. Generates formatted service messages for:
+   - Memory additions: "📌 Память добавлена: \"{summary}\" (вес {w})"
+   - Relationship axis changes: "❤️ Доверие +0.08 → 0.71"
+   - Mood shifts: "🌤️ Настроение обновлено: валентность +0.2"
+   - Cost checkpoints: "💰 Сессия: 1,230 ток. ≈ $0.004 | Месяц: $0.37"
+
+2. Respects user settings (service_messages toggle)
+3. Rate-limits messages to avoid spam
+4. Collates small deltas into single updates
+
+Example implementation:
+```python
+class ServiceMessageManager:
+    def __init__(self, settings_manager):
+        self.settings_manager = settings_manager
+        self.last_service_time = {}  # (persona, user_id) -> timestamp
+        self.pending_updates = {}    # (persona, user_id) -> {axis: delta}
+    
+    def should_send_service_message(self, persona, user_id):
+        settings = self.settings_manager.get_settings(persona, user_id)
+        if not settings.get('service_messages', True):
+            return False
+        
+        # Rate limiting
+        key = (persona, user_id)
+        now = time.time()
+        if key in self.last_service_time:
+            if now - self.last_service_time[key] < 60:  # 1 minute rate limit
+                return False
+        
+        return True
+    
+    def format_memory_added(self, summary, weight):
+        return f"📌 Память добавлена: \"{summary}\" (вес {weight:.2f})"
+    
+    def format_relationship_change(self, axis, old_value, new_value):
+        delta = new_value - old_value
+        sign = "+" if delta > 0 else ""
+        axis_name = self._get_axis_display_name(axis)
+        return f"❤️ {axis_name} {sign}{delta:.2f} → {new_value:.2f}"
+    
+    def format_mood_shift(self, dimension, delta):
+        sign = "+" if delta > 0 else ""
+        return f"🌤️ Настроение обновлено: {dimension} {sign}{delta:.1f}"
+    
+    def notify_memory_added(self, persona, user_id, summary, weight):
+        if not self.should_send_service_message(persona, user_id):
+            return None
+        
+        message = self.format_memory_added(summary, weight)
+        self.last_service_time[(persona, user_id)] = time.time()
+        return message
+    
+    def notify_relationship_change(self, persona, user_id, axis, old_value, new_value):
+        # Collect small changes and only notify for significant ones
+        key = (persona, user_id)
+        delta = new_value - old_value
+        
+        if abs(delta) < 0.05:  # Too small to notify individually
+            if key not in self.pending_updates:
+                self.pending_updates[key] = {}
+            
+            if axis in self.pending_updates[key]:
+                self.pending_updates[key][axis] += delta
+            else:
+                self.pending_updates[key][axis] = delta
+            
+            # If accumulated delta is significant, send notification
+            if abs(self.pending_updates[key][axis]) >= 0.05:
+                if self.should_send_service_message(persona, user_id):
+                    message = self.format_relationship_change(
+                        axis, 
+                        new_value - self.pending_updates[key][axis], 
+                        new_value
+                    )
+                    self.last_service_time[key] = time.time()
+                    self.pending_updates[key][axis] = 0
+                    return message
+            
+            return None
+        
+        # For significant changes, notify immediately
+        if self.should_send_service_message(persona, user_id):
+            message = self.format_relationship_change(axis, old_value, new_value)
+            self.last_service_time[key] = time.time()
+            return message
+        
+        return None
+```
+
+# Test Strategy:
+Test service message formatting for different types of updates. Test rate limiting by sending multiple updates in quick succession. Test collation of small deltas. Test respect for user settings (service_messages toggle). Test with different languages to ensure proper formatting.

@@ -1,0 +1,99 @@
+# Task ID: 6
+# Title: Implement User Settings Management
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create a system to store and retrieve user settings for model selection, temperature, and notification preferences.
+# Details:
+Implement a SettingsManager class that handles:
+
+1. Storing settings per user
+2. Default settings for new users
+3. Settings validation
+4. Settings update API
+
+Settings to store:
+- model (string): Selected LLM model (gpt-4o, gpt-4.1-turbo, sonnet-3.7, etc.)
+- temperature (float): Generation temperature (0.0-1.0)
+- service_messages (boolean): Whether to show service messages
+- cost_summaries (boolean): Whether to show cost summaries
+- language (string): User's preferred language
+
+Example implementation:
+```python
+class SettingsManager:
+    def __init__(self, data_dir="backend/data/telegram"):
+        self.data_dir = data_dir
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Default settings
+        self.defaults = {
+            "model": "gpt-4o",
+            "temperature": 0.7,
+            "service_messages": True,
+            "cost_summaries": True,
+            "language": "ru"  # Default to Russian as per PRD examples
+        }
+        
+        # Available models
+        self.available_models = [
+            "gpt-4o", 
+            "gpt-4.1-turbo", 
+            "sonnet-3.7"
+        ]
+    
+    def _get_settings_path(self, user_id):
+        return os.path.join(self.data_dir, "settings", f"{user_id}.json")
+    
+    def get_settings(self, persona, user_id):
+        # Settings are per-user, not per (persona, user_id)
+        path = self._get_settings_path(user_id)
+        
+        if not os.path.exists(path):
+            return self.defaults.copy()
+        
+        try:
+            with open(path, "r") as f:
+                settings = json.load(f)
+                
+            # Ensure all default keys exist
+            for key, value in self.defaults.items():
+                if key not in settings:
+                    settings[key] = value
+            
+            return settings
+        except Exception as e:
+            print(f"Error loading settings for user {user_id}: {e}")
+            return self.defaults.copy()
+    
+    def update_settings(self, user_id, updates):
+        settings = self.get_settings(None, user_id)  # Current settings
+        
+        # Validate updates
+        if "model" in updates and updates["model"] not in self.available_models:
+            raise ValueError(f"Invalid model: {updates['model']}")
+        
+        if "temperature" in updates:
+            temp = float(updates["temperature"])
+            if temp < 0.0 or temp > 1.0:
+                raise ValueError(f"Temperature must be between 0.0 and 1.0: {temp}")
+            updates["temperature"] = temp
+        
+        # Apply updates
+        settings.update(updates)
+        
+        # Save settings
+        path = self._get_settings_path(user_id)
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        
+        with open(path, "w") as f:
+            json.dump(settings, f, indent=2)
+        
+        return settings
+    
+    def get_available_models(self):
+        return self.available_models
+```
+
+# Test Strategy:
+Test settings storage and retrieval for multiple users. Test default settings for new users. Test settings validation (model selection, temperature bounds). Test settings update with valid and invalid values. Test persistence by writing and reading from disk.

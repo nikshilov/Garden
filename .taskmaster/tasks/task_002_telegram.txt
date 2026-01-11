@@ -1,0 +1,42 @@
+# Task ID: 2
+# Title: Implement Webhook Endpoints for Both Bots
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Create webhook endpoints to receive Telegram updates for both Eve and Adam bots.
+# Details:
+Implement two webhook endpoints:
+- `POST /tg/webhook/eve` - For Eve bot
+- `POST /tg/webhook/adam` - For Adam bot
+
+Each endpoint should:
+1. Validate the incoming Telegram update
+2. Parse the update to extract message content, user ID, and command (if any)
+3. Route the update to the appropriate handler based on content type (text, command)
+4. Return a 200 OK response to Telegram
+
+Implement a webhook registration function that can be called during deployment to set the webhook URL for each bot with Telegram's API.
+
+Example code:
+```python
+from fastapi import FastAPI, Request, Response
+
+app = FastAPI()
+
+@app.post("/tg/webhook/eve")
+async def eve_webhook(request: Request):
+    update = await request.json()
+    # Process update for Eve bot
+    await process_update("eve", update)
+    return Response(status_code=200)
+
+@app.post("/tg/webhook/adam")
+async def adam_webhook(request: Request):
+    update = await request.json()
+    # Process update for Adam bot
+    await process_update("adam", update)
+    return Response(status_code=200)
+```
+
+# Test Strategy:
+Create unit tests with mock Telegram updates for both webhooks. Verify that updates are correctly parsed and routed. Test with various message types (text, commands). Ensure webhook registration works correctly with the Telegram API.

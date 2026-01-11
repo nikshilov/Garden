@@ -1,0 +1,149 @@
+# Task ID: 15
+# Title: Implement Testing and Monitoring
+# Status: pending
+# Dependencies: 13, 14
+# Priority: high
+# Description: Create comprehensive tests and monitoring for the system.
+# Details:
+Implement testing and monitoring infrastructure:
+
+1. Unit tests:
+   - Test each component in isolation
+   - Test edge cases and error handling
+
+2. Integration tests:
+   - Test the full message processing pipeline
+   - Test webhook handling
+   - Test Mini App integration
+
+3. Performance tests:
+   - Measure response times
+   - Test under load
+
+4. Monitoring:
+   - Log important events
+   - Track error rates
+   - Monitor response times
+   - Alert on failures
+
+Example test for Character class:
+```python
+import pytest
+from unittest.mock import MagicMock, patch
+from backend.character import Character
+
+@pytest.fixture
+def mock_memory_manager():
+    manager = MagicMock()
+    manager.get_top_memories.return_value = [
+        {"summary": "User likes cats", "weight": 0.8},
+        {"summary": "User is a software developer", "weight": 0.7}
+    ]
+    return manager
+
+@pytest.fixture
+def mock_episodic_store():
+    store = MagicMock()
+    store.search.return_value = [
+        {"content": "User talked about their new job"}
+    ]
+    return store
+
+def test_character_respond(mock_memory_manager, mock_episodic_store):
+    # Arrange
+    character = Character("eve")
+    character.memory_manager = mock_memory_manager
+    character.episodic_store = mock_episodic_store
+    
+    with patch.object(character, '_generate_response') as mock_generate:
+        mock_generate.return_value = {
+            "response": "Hello, how are you?",
+            "input_tokens": 100,
+            "output_tokens": 50,
+            "memory_updates": [
+                {"content": "User greeted the bot", "summary": "User was friendly", "weight": 0.5}
+            ],
+            "relationship_updates": [
+                {"axis": "trust", "delta": 0.05}
+            ]
+        }
+        
+        # Act
+        user_id = 12345
+        message = "Hi there!"
+        settings = {"model": "gpt-4o", "temperature": 0.7}
+        response = character.respond(user_id, message, settings)
+        
+        # Assert
+        assert response["response"] == "Hello, how are you?"
+        assert response["input_tokens"] == 100
+        assert response["output_tokens"] == 50
+        assert len(response["memory_updates"]) == 1
+        assert len(response["relationship_updates"]) == 1
+        
+        # Verify memory and episodic store were called
+        mock_memory_manager.get_top_memories.assert_called_once()
+        mock_episodic_store.search.assert_called_once()
+        
+        # Verify prompt assembly and generation
+        mock_generate.assert_called_once()
+        args = mock_generate.call_args[0]
+        assert "eve" in args[0]  # System prompt contains persona name
+        assert "gpt-4o" == args[1]  # Model from settings
+        assert 0.7 == args[2]  # Temperature from settings
+```
+
+Example monitoring setup:
+```python
+import logging
+import time
+from fastapi import FastAPI, Request, Response
+from fastapi.middleware.base import BaseHTTPMiddleware
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("app.log"),
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
+
+# Middleware for request timing and logging
+class MonitoringMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        
+        try:
+            response = await call_next(request)
+            process_time = time.time() - start_time
+            
+            # Log request details
+            logger.info(
+                f"Request: {request.method} {request.url.path} - "
+                f"Status: {response.status_code} - "
+                f"Time: {process_time:.4f}s"
+            )
+            
+            # Add timing header
+            response.headers["X-Process-Time"] = str(process_time)
+            return response
+        except Exception as e:
+            process_time = time.time() - start_time
+            logger.error(
+                f"Request: {request.method} {request.url.path} - "
+                f"Error: {str(e)} - "
+                f"Time: {process_time:.4f}s"
+            )
+            raise
+
+# Add middleware to app
+app = FastAPI()
+app.add_middleware(MonitoringMiddleware)
+```
+
+# Test Strategy:
+Run unit tests for all components. Run integration tests for the full system. Measure response times under various conditions to ensure they meet the P95 < 3s requirement. Test monitoring by simulating errors and verifying they are properly logged and alerted.

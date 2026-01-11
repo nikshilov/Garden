@@ -13,8 +13,10 @@ import os
 import asyncio
 from typing import Any, Dict, Set, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
+from dotenv import load_dotenv, find_dotenv
+import httpx
 
 # Ensure local imports work when running via `uvicorn server:app`
 try:
@@ -31,6 +33,9 @@ except ModuleNotFoundError as exc:
 
 app = FastAPI(title="Garden Chat Backend", version="0.1.0")
 
+# Load .env from project root (search upwards) for local development
+load_dotenv(find_dotenv())
+
 # --- Initialise global objects ------------------------------------------------
 
 cost_tracker = CostTracker()
@@ -44,6 +49,10 @@ character_models: Dict[str, str] = {
     pair.split(":")[0]: pair.split(":")[1] for pair in char_models_env.split(",") if ":" in pair
 }
 
+# Ensure 'adam' is available by default for Telegram persona
+if "adam" not in character_models:
+    character_models.setdefault("adam", character_models.get("eve", "gpt-4o"))
+
 # Create the LangGraph graph once at startup
 graph = create_world_chat_graph(
     router_model=router_model,
@@ -51,6 +60,12 @@ graph = create_world_chat_graph(
     cost_tracker=cost_tracker,
     memory_manager=memory_manager,
 )
+
+# Telegram configuration (tokens and webhook secrets)
+EVE_BOT_TOKEN = os.getenv("EVE_BOT_TOKEN", "")
+ADAM_BOT_TOKEN = os.getenv("ADAM_BOT_TOKEN", "")
+WEBHOOK_SECRET_EVE = os.getenv("WEBHOOK_SECRET_EVE", "")
+WEBHOOK_SECRET_ADAM = os.getenv("WEBHOOK_SECRET_ADAM", "")
 
 # Helper to build new state dict for each request
 
@@ -110,6 +125,86 @@ async def chat(req: ChatRequest):
         raise HTTPException(status_code=500, detail="No response from characters")
 
     return ChatResponse(text=reply, cost_total_usd=cost_tracker.get_total_usd())
+
+# --- Telegram Webhook Handlers -----------------------------------------------
+
+async def _invoke_graph_for_persona(text: str, persona_id: str) -> str:
+    state = _initial_state()
+    state["user_message"] = text
+    state["active_characters"] = {persona_id}
+    state["selected_characters"] = {persona_id}
+    state["message_history"].append({"role": "user", "content": text})
+
+    result = await graph.ainvoke(state)
+    reply: Optional[str] = result.get("final_response")
+    if not reply and result.get("character_responses"):
+        reply = "\n".join(result["character_responses"].values())
+    return reply or ""
+
+async def _send_telegram_message(bot_token: str, chat_id: int | str, text: str) -> None:
+    if not bot_token:
+        return
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text}
+    timeout = httpx.Timeout(10.0, connect=5.0)
+    async with httpx.AsyncClient(timeout=timeout) as client:
+        try:
+            await client.post(url, json=payload)
+        except Exception:
+            # Best-effort send; avoid raising to keep webhook 200
+            pass
+
+def _extract_message(update: Dict[str, Any]) -> Dict[str, Any] | None:
+    return update.get("message") or update.get("edited_message")
+
+@app.post("/tg/eve/webhook")
+async def tg_eve_webhook(request: Request) -> Dict[str, bool]:
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if WEBHOOK_SECRET_EVE and secret != WEBHOOK_SECRET_EVE:
+        raise HTTPException(status_code=403, detail="Invalid secret token")
+
+    update = await request.json()
+    msg = _extract_message(update)
+    if not msg:
+        return {"ok": True}
+
+    chat_id = msg["chat"]["id"]
+    text = msg.get("text", "").strip() or "/start"
+
+    try:
+        reply = await _invoke_graph_for_persona(text, persona_id="eve")
+        if not reply:
+            reply = "Привет!"
+        await _send_telegram_message(EVE_BOT_TOKEN, chat_id, reply)
+    except Exception:
+        # Do not fail webhook delivery
+        pass
+
+    return {"ok": True}
+
+@app.post("/tg/adam/webhook")
+async def tg_adam_webhook(request: Request) -> Dict[str, bool]:
+    secret = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if WEBHOOK_SECRET_ADAM and secret != WEBHOOK_SECRET_ADAM:
+        raise HTTPException(status_code=403, detail="Invalid secret token")
+
+    update = await request.json()
+    msg = _extract_message(update)
+    if not msg:
+        return {"ok": True}
+
+    chat_id = msg["chat"]["id"]
+    text = msg.get("text", "").strip() or "/start"
+
+    try:
+        reply = await _invoke_graph_for_persona(text, persona_id="adam")
+        if not reply:
+            reply = "Привет!"
+        await _send_telegram_message(ADAM_BOT_TOKEN, chat_id, reply)
+    except Exception:
+        pass
+
+    return {"ok": True}
 
 # --- Run with `python server.py` for convenience ------------------------------
 

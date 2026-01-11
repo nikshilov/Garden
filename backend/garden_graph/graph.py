@@ -11,7 +11,7 @@ from garden_graph.router import Router
 from garden_graph.character import Character
 from garden_graph.cost_tracker import CostTracker
 from garden_graph.config import ROUTER_MODEL, INTIMACY_AFFECTION_THRESHOLD, INTIMACY_AROUSAL_THRESHOLD
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 
@@ -159,7 +159,7 @@ def create_world_chat_graph(
             "role": characters[character_id].name,
             "content": response,
             "character_id": character_id,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }
         
         # Return updates - don't modify state directly

@@ -52,6 +52,19 @@ final class ChatViewModel: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
     
+    // MARK: - Persistence
+    private func setupPersistence() {
+        // Load history
+        messages = ChatHistoryStore.shared.loadMessages(chatId: chatId)
+        // Save on each change
+        $messages
+            .debounce(for: .milliseconds(100), scheduler: DispatchQueue.main)
+            .sink { msgs in
+                ChatHistoryStore.shared.saveMessages(msgs, chatId: self.chatId)
+            }
+            .store(in: &cancellables)
+    }
+    
     private static func parseMultiSpeakerResponse(_ text: String, totalCost: Double?, totalDuration: TimeInterval?) -> [ChatMessage] {
         let pattern = #"\*\*(.*?)\*\*:\s*(.*?(?=\n\*\*|$))"#
         let regex = try! NSRegularExpression(pattern: pattern, options: [.dotMatchesLineSeparators])
@@ -92,6 +105,8 @@ final class ChatViewModel: ObservableObject {
     init(store: ChatsStore, chatId: String = "world") {
         self.chatsStore = store
         self.chatId = chatId
+        // Load history and observe changes
+        setupPersistence()
     }
     
     convenience init() {
@@ -110,6 +125,7 @@ final class ChatViewModel: ObservableObject {
     
     // Reset chat by clearing messages & cost
     func resetSession() {
+        ChatHistoryStore.shared.deleteHistory(chatId: chatId)
         messages.removeAll()
         totalCostUSD = 0
         typingPlaceholderId = nil

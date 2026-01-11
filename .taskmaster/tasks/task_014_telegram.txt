@@ -1,0 +1,219 @@
+# Task ID: 14
+# Title: Implement Deployment and CI/CD Pipeline
+# Status: pending
+# Dependencies: 2, 9, 10, 13
+# Priority: medium
+# Description: Create deployment scripts and CI/CD pipeline for staging and production environments.
+# Details:
+Implement deployment infrastructure:
+
+1. Docker containerization:
+   - Create Dockerfile for backend
+   - Create Dockerfile for frontend Mini App
+   - Create docker-compose.yml for local development
+
+2. CI/CD pipeline:
+   - GitHub Actions workflow for testing
+   - Deployment to staging on PR merge
+   - Deployment to production on release tag
+
+3. Environment configuration:
+   - Environment variables for different environments
+   - Secret management
+   - Webhook registration script
+
+Example Dockerfile for backend:
+```dockerfile
+FROM python:3.10-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/ ./backend/
+
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+
+Example GitHub Actions workflow:
+```yaml
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ published ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+      - name: Test with pytest
+        run: |
+          pytest
+
+  deploy-staging:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Deploy to staging
+        run: |
+          # Deployment script for staging
+          echo "Deploying to staging..."
+
+  deploy-production:
+    needs: test
+    if: github.event_name == 'release' && github.event.action == 'published'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Deploy to production
+        run: |
+          # Deployment script for production
+          echo "Deploying to production..."
+```
+
+Implement a webhook registration script:
+```python
+import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+def register_webhook(bot_token, webhook_url):
+    api_url = f"https://api.telegram.org/bot{bot_token}/setWebhook"
+    params = {
+        "url": webhook_url,
+        "allowed_updates": ["message", "callback_query"]
+    }
+    
+    response = requests.post(api_url, json=params)
+    return response.json()
+
+def main():
+    # Eve bot
+    eve_token = os.getenv("EVE_BOT_TOKEN")
+    eve_webhook = f"{os.getenv('API_BASE_URL')}/tg/webhook/eve"
+    
+    # Adam bot
+    adam_token = os.getenv("ADAM_BOT_TOKEN")
+    adam_webhook = f"{os.getenv('API_BASE_URL')}/tg/webhook/adam"
+    
+    # Register webhooks
+    print("Registering Eve webhook...")
+    eve_result = register_webhook(eve_token, eve_webhook)
+    print(eve_result)
+    
+    print("Registering Adam webhook...")
+    adam_result = register_webhook(adam_token, adam_webhook)
+    print(adam_result)
+
+if __name__ == "__main__":
+    main()
+```
+
+# Test Strategy:
+Test Docker builds for both backend and frontend. Test docker-compose setup for local development. Test CI/CD pipeline with mock deployments. Test webhook registration script with test bot tokens. Verify environment variable handling across different environments.
+
+# Subtasks:
+## 1. Provision Railway service (root=backend, Python Nixpacks) [pending]
+### Dependencies: None
+### Description: Create a Railway service for the Telegram backend using the backend/ directory as project root.
+### Details:
+- Service root: backend/
+- Nixpacks auto-detects Python via requirements.txt
+- Region: closest to target audience (EU/US)
+- Enable deploy on push later (optional)
+
+## 2. Configure start command for FastAPI [pending]
+### Dependencies: None
+### Description: Set uvicorn start command compatible with Railway PORT.
+### Details:
+Start command: uvicorn server:app --host 0.0.0.0 --port $PORT
+Verify /health works after deploy.
+
+## 3. Set required Railway environment variables [pending]
+### Dependencies: None
+### Description: Add tokens, secrets, and model provider keys required for Telegram operation.
+### Details:
+Required envs: EVE_BOT_TOKEN, ADAM_BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_SECRET_EVE, WEBHOOK_SECRET_ADAM
+Provider keys: OPENAI_API_KEY (and optional ANTHROPIC_API_KEY/GROQ_API_KEY)
+Optional: ROUTER_MODEL, CHARACTER_MODELS
+
+## 4. Create webhook registration script (+ Makefile target) [pending]
+### Dependencies: None
+### Description: Automate setWebhook calls for Eve and Adam with secret_token.
+### Details:
+Script path: backend/scripts/set_webhooks.sh (or .py)
+Inputs: EVE_BOT_TOKEN, ADAM_BOT_TOKEN, WEBHOOK_BASE_URL, WEBHOOK_SECRET_*
+Add Makefile target: make set-webhooks
+
+## 5. Deploy to staging and register webhooks [pending]
+### Dependencies: None
+### Description: First deploy to Railway, then execute webhook registration for both bots.
+### Details:
+- Deploy service and confirm public URL
+- Run set-webhooks for /tg/eve/webhook and /tg/adam/webhook with secrets
+- Validate Telegram returns ok: true
+
+## 6. Smoke test Eve and Adam end-to-end [pending]
+### Dependencies: None
+### Description: Send /start and a message to each bot; verify reply and cost tracking.
+### Details:
+- Send /start to Eve and Adam
+- Verify messages reach webhooks (Railway logs)
+- Confirm FastAPI /health is 200
+- Capture screenshots and logs
+
+## 7. Document deployment & rollback [pending]
+### Dependencies: None
+### Description: Write short deploy guide and rollback steps.
+### Details:
+File: docs/deploy_telegram.md
+- Railway service creation, env vars list, start command
+- Webhook registration commands
+- Rollback: revert to previous deploy, unset webhooks if needed
+
+## 8. Production readiness checks [pending]
+### Dependencies: None
+### Description: Tune Railway settings and minimal monitoring.
+### Details:
+- Set min instances / autosleep policy
+- Region confirmation
+- Basic alerts on crash/restart (Railway notifications)
+- Note rate limits and Telegram IP allowlist (N/A on Railway)
+
+## 9. Optional: custom domain mapping [pending]
+### Dependencies: None
+### Description: Map a custom domain to the Railway service for stable URLs.
+### Details:
+- Add domain in Railway
+- Configure DNS CNAME
+- Update WEBHOOK_BASE_URL
+- Re-run webhook registration
+
+## 10. Enable auto-deploy on push (main) [pending]
+### Dependencies: None
+### Description: Turn on Railway GitHub integration for auto deployments.
+### Details:
+- Connect repo and service to Railway
+- Auto-deploy from main branch
+- Protect with required checks (CI green)
+

@@ -250,7 +250,7 @@ class Character:
     def _load_or_generate_mood(self) -> MoodState:
         """Load mood from disk or create a new one for today."""
         path = self._get_mood_path()
-        today = datetime.utcnow().date()
+        today = datetime.now(timezone.utc).date()
         try:
             if os.path.exists(path):
                 with open(path, "r", encoding="utf-8") as f:

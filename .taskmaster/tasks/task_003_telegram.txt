@@ -1,0 +1,73 @@
+# Task ID: 3
+# Title: Implement Character Prompt Assembly Pipeline
+# Status: pending
+# Dependencies: 1
+# Priority: high
+# Description: Build the LangGraph Character pipeline for deterministic prompt assembly for both personas.
+# Details:
+Implement the Character.respond() pipeline that assembles prompts in a deterministic way:
+
+1. Create a base Character class with the following components:
+   - System prompt management (different for Eve and Adam)
+   - Mood prefix generation based on user's current mood state
+   - Memory integration (top-K decayed memories)
+   - Episodic retrieval (via EpisodicStore.search with k=3)
+   - Short-term context window management (5-8 turns)
+
+2. Implement the prompt assembly logic that combines:
+   - Persona system prompt
+   - User's mood prefix
+   - Retrieved memories
+   - Episodic context
+   - Recent conversation history
+
+Example implementation:
+```python
+class Character:
+    def __init__(self, persona_name):
+        self.persona_name = persona_name
+        self.system_prompt = self._load_system_prompt(persona_name)
+        self.memory_manager = MemoryManager()
+        self.episodic_store = EpisodicStore()
+    
+    def respond(self, user_id, message, user_settings):
+        # Get user's mood
+        mood = self.memory_manager.get_mood(self.persona_name, user_id)
+        mood_prefix = self._generate_mood_prefix(mood)
+        
+        # Get relevant memories
+        memories = self.memory_manager.get_top_memories(
+            self.persona_name, user_id, k=5, decay_factor=0.8
+        )
+        
+        # Get episodic context
+        episodic = self.episodic_store.search(
+            persona=self.persona_name, 
+            user_id=user_id,
+            query=message,
+            k=3
+        )
+        
+        # Get conversation history
+        history = self._get_conversation_history(user_id, turns=6)
+        
+        # Assemble prompt
+        prompt = self._assemble_prompt(
+            system_prompt=self.system_prompt,
+            mood_prefix=mood_prefix,
+            memories=memories,
+            episodic=episodic,
+            history=history,
+            message=message
+        )
+        
+        # Generate response using selected model and temperature
+        model = user_settings.get('model', 'gpt-4o')
+        temperature = user_settings.get('temperature', 0.7)
+        response = self._generate_response(prompt, model, temperature)
+        
+        return response
+```
+
+# Test Strategy:
+Create unit tests for each component of the Character pipeline. Test prompt assembly with various inputs and verify deterministic ordering. Test with mock memory and episodic data. Verify that the same inputs consistently produce the same prompt structure. Test integration with actual LLM APIs using small test prompts.

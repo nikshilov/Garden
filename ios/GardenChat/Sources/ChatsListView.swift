@@ -56,11 +56,9 @@ struct ChatsListView: View {
                 }
             }
             .navigationTitle("Chats")
-            .sheet(isPresented: $showingNewChat) {
-                NewChatView()
-                    .environmentObject(store)
-                    .environmentObject(charactersStore)
-            }
+            .background(
+                NavigationLink(destination: NewChatView().environmentObject(store).environmentObject(charactersStore), isActive: Binding(get: { showingNewChat }, set: { if !$0 { showingNewChat = false } }), label: { EmptyView() })
+            )
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {

@@ -11,28 +11,29 @@ struct ContentView: View {
         ZStack {
             Color(.systemBackground).ignoresSafeArea()
             VStack(spacing: 0) {
-                ChatHeader(viewModel: viewModel)
-                Divider()
-                ChatView(messages: exyteMessages) { draft in
-                    viewModel.send(draft: draft)
-                } messageBuilder: { message, _, _, _, _, _, _ in
-                    ChatBubble(message: message,
-                               showCostMeta: showCostMeta,
-                               metaProvider: { messageId in viewModel.meta(for: messageId) ?? (cost: nil, time: nil) })
-                } inputViewBuilder: { textBinding, _, _, _, action, _ in
-                    HStack {
-                        TextField("Message", text: textBinding, axis: .vertical)
-                            .textFieldStyle(.roundedBorder)
-                            .submitLabel(.send)
-                        Button("Send") { action(.send) }
-                            .buttonStyle(.borderedProminent)
-                            .disabled(textBinding.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    ChatHeader(viewModel: viewModel)
+                    Divider()
+                    ChatView(messages: exyteMessages) { draft in
+                        viewModel.send(draft: draft)
+                    } messageBuilder: { message, _, _, _, _, _, _ in
+                        ChatBubble(message: message,
+                                   showCostMeta: showCostMeta,
+                                   metaProvider: { messageId in viewModel.meta(for: messageId) ?? (cost: nil, time: nil) })
+                    } inputViewBuilder: { textBinding, _, _, _, action, _ in
+                        HStack {
+                            TextField("Message", text: textBinding, axis: .vertical)
+                                .textFieldStyle(.roundedBorder)
+                                .submitLabel(.send)
+                            Button("Send") { action(.send) }
+                                .buttonStyle(.borderedProminent)
+                                .disabled(textBinding.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .chatTheme(ChatTheme())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .chatTheme(ChatTheme())
+
                 .onAppear {
                     exyteMessages = viewModel.exyteMessages
                 }

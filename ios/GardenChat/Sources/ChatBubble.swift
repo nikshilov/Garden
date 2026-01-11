@@ -8,9 +8,8 @@ struct ChatBubble: View {
     let metaProvider: (String) -> (cost: Double?, time: TimeInterval?)
     
     var body: some View {
-        HStack(alignment: .bottom, spacing: 8) {
+        HStack(alignment: .bottom, spacing: 4) {
             let isCurrent = message.user.isCurrentUser
-            if isCurrent { Spacer(minLength: 40) }
             
             VStack(alignment: isCurrent ? .trailing : .leading, spacing: 4) {
                 // Show speaker name for bot messages
@@ -32,7 +31,7 @@ struct ChatBubble: View {
                             .fill(isCurrent ? Color.blue : Color.gray.opacity(0.2))
                     )
                     .foregroundColor(isCurrent ? .white : .primary)
-                    .frame(maxWidth: 260, alignment: isCurrent ? .trailing : .leading)
+                    .frame(maxWidth: UIScreen.main.bounds.width * 0.7, alignment: isCurrent ? .trailing : .leading)
             
                 
                 if showCostMeta {
@@ -53,8 +52,6 @@ struct ChatBubble: View {
                     }
                 }
             }
-            
-            if !isCurrent { Spacer(minLength: 40) }
         }
     }
 }

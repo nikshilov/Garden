@@ -1,0 +1,88 @@
+# Task ID: 11
+# Title: Implement Mini App Authentication
+# Status: pending
+# Dependencies: 9, 10
+# Priority: high
+# Description: Create authentication system for the Mini App to verify Telegram WebApp init data.
+# Details:
+Implement authentication for the Mini App:
+
+1. Client-side validation of Telegram WebApp data
+2. Server-side verification of auth hash
+3. Middleware for protecting API endpoints
+
+Example implementation for client-side:
+```javascript
+// utils/auth.js
+export function verifyTelegramWebAppData(initData) {
+  if (!initData) {
+    return { verified: false, error: 'No init data provided' };
+  }
+  
+  try {
+    // Parse the initData
+    const params = new URLSearchParams(initData);
+    const user = JSON.parse(params.get('user') || '{}');
+    
+    // In a real implementation, we would verify the hash on the server side
+    // For now, we'll just check if user data exists
+    if (!user.id) {
+      return { verified: false, error: 'Invalid user data' };
+    }
+    
+    return { verified: true, user };
+  } catch (error) {
+    console.error('Error parsing WebApp data:', error);
+    return { verified: false, error: error.message };
+  }
+}
+```
+
+Example implementation for server-side:
+```python
+# Server-side verification in middleware/auth.py
+import hmac
+import hashlib
+from urllib.parse import parse_qsl
+import json
+
+class TelegramAuthMiddleware:
+    def __init__(self, bot_token):
+        self.bot_token = bot_token
+        # Create a secret key by hashing the bot token with SHA256
+        self.secret_key = hashlib.sha256(bot_token.encode()).digest()
+    
+    def verify_telegram_data(self, init_data):
+        # Parse the data
+        data_dict = dict(parse_qsl(init_data))
+        
+        if "hash" not in data_dict:
+            return None
+        
+        # Get the hash from the data
+        received_hash = data_dict.pop("hash")
+        
+        # Sort the data alphabetically
+        data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(data_dict.items()))
+        
+        # Calculate the HMAC-SHA-256 signature
+        calculated_hash = hmac.new(
+            self.secret_key,
+            data_check_string.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        # Compare the received hash with the calculated one
+        if calculated_hash != received_hash:
+            return None
+        
+        # Extract user data
+        try:
+            user_data = json.loads(data_dict.get("user", "{}"))
+            return user_data
+        except:
+            return None
+```
+
+# Test Strategy:
+Test client-side validation with valid and invalid WebApp data. Test server-side verification with valid and invalid hashes. Test middleware protection of API endpoints. Test error handling for missing or invalid authentication data. Test with mock Telegram WebApp data.

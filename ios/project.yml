@@ -19,14 +19,13 @@ targets:
   GardenChat:
     type: application
     platform: iOS
-    sources: [GardenChat/Sources]
+    sources: [GardenChat/Sources, GardenChat/LaunchScreen.storyboard]
     dependencies:
       - target: GardenCore
       - package: ExyteChat
         product: ExyteChat
     settings:
       base:
-        GENERATE_INFOPLIST_FILE: YES
         PRODUCT_BUNDLE_IDENTIFIER: ai.garden.chat
     info:
       path: GardenChat/Info.plist

@@ -1,0 +1,24 @@
+# Task ID: 1
+# Title: Setup Project Structure and Environment
+# Status: pending
+# Dependencies: None
+# Priority: high
+# Description: Initialize the project repository with proper structure for two Telegram bots (Eve and Adam) and Mini App components.
+# Details:
+Create a new repository with the following structure:
+- `/backend/` - Core backend code
+- `/backend/data/telegram/` - For persistence storage
+- `/backend/bots/` - Bot implementation
+- `/backend/miniapp/` - Mini App backend
+- `/frontend/` - Mini App frontend
+
+Setup environment variables:
+- `EVE_BOT_TOKEN` - Telegram token for Eve bot
+- `ADAM_BOT_TOKEN` - Telegram token for Adam bot
+- `API_BASE_URL` - Base URL for webhook endpoints
+- `LLM_API_KEYS` - API keys for language models
+
+Create a `.env.example` file with placeholders for all required environment variables. Set up a basic README.md with project overview and setup instructions.
+
+# Test Strategy:
+Verify project structure is correctly set up. Ensure environment variables can be loaded properly. Test that the repository can be cloned and set up on a new environment following the README instructions.

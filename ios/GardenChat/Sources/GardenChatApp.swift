@@ -8,7 +8,8 @@ struct GardenChatApp: App {
     
     var body: some Scene {
         WindowGroup {
-            TabView {
+            NavigationView {
+                TabView {
                 DashboardView()
                     .tabItem { Label("Home", systemImage: "house") }
                 ChatsListView()
@@ -22,6 +23,8 @@ struct GardenChatApp: App {
                     .tabItem { Label("Characters", systemImage: "person.2") }
                 SettingsView()
                     .tabItem { Label("Settings", systemImage: "gear") }
+                }
+                .navigationBarHidden(true)
             }
         }
     }

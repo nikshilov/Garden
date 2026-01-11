@@ -1,0 +1,95 @@
+# Task ID: 4
+# Title: Implement Per-User Memory and Relationship Tracking
+# Status: pending
+# Dependencies: 1, 3
+# Priority: high
+# Description: Create a system to store and retrieve per-user memory and relationship data for each persona.
+# Details:
+Implement a MemoryManager class that handles:
+
+1. Storing memories per (persona, user_id) pair
+2. Retrieving top-K memories with decay factor
+3. Tracking relationship axes changes
+4. Tracking mood changes
+
+Data should be persisted under backend/data/telegram/ with appropriate file structure.
+
+Implement the following classes:
+- `MemoryRecord`: Stores individual memories with weight and timestamp
+- `RelationshipProfile`: Tracks relationship axes (trust, etc.) as specified in docs/emotional_memory.md
+
+Example implementation:
+```python
+class MemoryManager:
+    def __init__(self, data_dir="backend/data/telegram"):
+        self.data_dir = data_dir
+        os.makedirs(data_dir, exist_ok=True)
+    
+    def _get_user_path(self, persona, user_id):
+        return os.path.join(self.data_dir, persona, str(user_id))
+    
+    def add_memory(self, persona, user_id, content, summary, weight=1.0):
+        path = self._get_user_path(persona, user_id)
+        os.makedirs(path, exist_ok=True)
+        
+        memory = MemoryRecord(
+            content=content,
+            summary=summary,
+            weight=weight,
+            timestamp=datetime.now().isoformat()
+        )
+        
+        # Save to file system
+        memories_file = os.path.join(path, "memories.jsonl")
+        with open(memories_file, "a") as f:
+            f.write(json.dumps(memory.__dict__) + "\n")
+        
+        return memory
+    
+    def get_top_memories(self, persona, user_id, k=5, decay_factor=0.8):
+        path = self._get_user_path(persona, user_id)
+        memories_file = os.path.join(path, "memories.jsonl")
+        
+        if not os.path.exists(memories_file):
+            return []
+        
+        memories = []
+        with open(memories_file, "r") as f:
+            for line in f:
+                memory = json.loads(line)
+                memories.append(MemoryRecord(**memory))
+        
+        # Apply decay and sort by effective weight
+        now = datetime.now()
+        for memory in memories:
+            memory_time = datetime.fromisoformat(memory.timestamp)
+            days_old = (now - memory_time).days
+            memory.effective_weight = memory.weight * (decay_factor ** days_old)
+        
+        # Sort and return top-k
+        memories.sort(key=lambda m: m.effective_weight, reverse=True)
+        return memories[:k]
+    
+    def update_relationship(self, persona, user_id, axis, delta):
+        path = self._get_user_path(persona, user_id)
+        os.makedirs(path, exist_ok=True)
+        
+        relationship_file = os.path.join(path, "relationship.json")
+        relationship = {}
+        
+        if os.path.exists(relationship_file):
+            with open(relationship_file, "r") as f:
+                relationship = json.load(f)
+        
+        old_value = relationship.get(axis, 0.5)
+        new_value = max(0.0, min(1.0, old_value + delta))
+        relationship[axis] = new_value
+        
+        with open(relationship_file, "w") as f:
+            json.dump(relationship, f)
+        
+        return {"axis": axis, "old": old_value, "new": new_value, "delta": delta}
+```
+
+# Test Strategy:
+Create unit tests for memory storage and retrieval. Test adding memories and retrieving with decay. Test relationship updates and verify bounds (0.0-1.0). Test persistence by writing and reading from disk. Test with multiple users and personas to ensure data isolation.

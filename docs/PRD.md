@@ -55,5 +55,7 @@ High-end LLM usage becomes expensive | Default to small model; show budget alert
 2. Exact animation style for “ethereal” look?
 3. Legal wording for memory storage & privacy consent?
 
+> NOTE: Canonical and most up-to-date PRD for Garden lives in `docs/garden_character_chat_prd.md`. This file remains as a lightweight index/summary.
+
 ---
-*(Last updated: 2025-05-21)*
+*(Last updated: 2025-08-22)*

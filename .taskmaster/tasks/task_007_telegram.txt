@@ -1,0 +1,110 @@
+# Task ID: 7
+# Title: Implement Bot Command Handlers
+# Status: pending
+# Dependencies: 2, 4, 6
+# Priority: high
+# Description: Create handlers for all bot commands specified in the PRD.
+# Details:
+Implement handlers for the following commands:
+
+1. `/start` - Greet user, introduce persona, hint at /help and /settings
+2. `/help` - List available commands and link to Mini App
+3. `/settings` - Show inline keyboard with toggles and Mini App link
+4. `/model` - Allow user to choose model from available list
+5. `/memory` - Show top-3 recent memories with buttons for Mini App and Clear
+6. `/clear` - Confirm and clear memory for this persona
+7. `/cost` - Show session and monthly cost in USD and tokens
+8. `/export` - Export JSON bundle of chat and memory
+
+Example implementation for command router:
+```python
+class CommandHandler:
+    def __init__(self, bot_api, settings_manager, memory_manager, cost_tracker):
+        self.bot_api = bot_api
+        self.settings_manager = settings_manager
+        self.memory_manager = memory_manager
+        self.cost_tracker = cost_tracker
+    
+    async def handle_command(self, persona, user_id, command, args):
+        handlers = {
+            "start": self.handle_start,
+            "help": self.handle_help,
+            "settings": self.handle_settings,
+            "model": self.handle_model,
+            "memory": self.handle_memory,
+            "clear": self.handle_clear,
+            "cost": self.handle_cost,
+            "export": self.handle_export
+        }
+        
+        if command in handlers:
+            return await handlers[command](persona, user_id, args)
+        else:
+            return "I don't recognize that command. Try /help to see available commands."
+    
+    async def handle_start(self, persona, user_id, args):
+        intro = "Hello! I'm Eve, your AI companion." if persona == "eve" else "Hi there! I'm Adam, your AI companion."
+        return f"{intro}\n\nYou can chat with me naturally or use commands like /help and /settings to customize our interaction."
+    
+    async def handle_help(self, persona, user_id, args):
+        commands = [
+            "/start - Start or restart our conversation",
+            "/help - Show this help message",
+            "/settings - Adjust your preferences",
+            "/model - Choose which AI model I use",
+            "/memory - View what I remember about our conversations",
+            "/clear - Clear my memory of our conversations",
+            "/cost - See usage statistics",
+            "/export - Export our conversation history"
+        ]
+        
+        settings = self.settings_manager.get_settings(persona, user_id)
+        lang = settings.get("language", "en")
+        
+        # Translate commands based on language setting
+        if lang == "ru":
+            # Russian translations would go here
+            pass
+        
+        message = "Available commands:\n\n" + "\n".join(commands)
+        message += "\n\nFor more settings, try our Mini App: [Open Settings](https://t.me/YourBotUsername/app)"
+        
+        return message
+    
+    async def handle_settings(self, persona, user_id, args):
+        settings = self.settings_manager.get_settings(persona, user_id)
+        
+        # Create inline keyboard
+        keyboard = {
+            "inline_keyboard": [
+                [
+                    {
+                        "text": f"Service Messages: {'ON' if settings['service_messages'] else 'OFF'}",
+                        "callback_data": f"toggle_service_messages:{persona}"
+                    }
+                ],
+                [
+                    {
+                        "text": f"Cost Summaries: {'ON' if settings['cost_summaries'] else 'OFF'}",
+                        "callback_data": f"toggle_cost_summaries:{persona}"
+                    }
+                ],
+                [
+                    {
+                        "text": "Open Settings Mini App",
+                        "web_app": {"url": f"https://your-domain.com/tg/app/?persona={persona}"}
+                    }
+                ]
+            ]
+        }
+        
+        return {
+            "text": "Adjust your settings below:",
+            "reply_markup": keyboard
+        }
+```
+
+Implement each command handler with appropriate functionality as specified in the PRD.
+
+# Test Strategy:
+Create unit tests for each command handler. Test with mock user data and verify correct responses. Test inline keyboards and buttons for /settings and /memory. Test model selection flow. Test memory clearing with confirmation. Test export functionality and verify JSON format. Test with different user settings to ensure proper behavior.
