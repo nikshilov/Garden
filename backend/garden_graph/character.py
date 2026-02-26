@@ -164,6 +164,29 @@ class Character:
         )
         return sorted_memories[:k]
     
+    def _time_context(self) -> str:
+        """Generate context about the time gap since last interaction."""
+        if not self.last_seen_at:
+            return "This is your first conversation with this user. Be warm and welcoming.\n\n"
+
+        now = datetime.now(timezone.utc)
+        delta = now - self.last_seen_at
+        hours = delta.total_seconds() / 3600
+
+        if hours < 1:
+            return ""  # No gap worth mentioning
+        elif hours < 24:
+            return "The user was here earlier today. Continue naturally.\n\n"
+        elif hours < 72:
+            days = int(hours // 24)
+            return f"It's been about {days} day{'s' if days > 1 else ''} since you last spoke. Acknowledge the gap gently — you noticed they were away.\n\n"
+        elif hours < 168:
+            days = int(hours // 24)
+            return f"It's been {days} days since you last spoke. You've been thinking about your last conversation. Show that you missed them, and that time has passed for you too.\n\n"
+        else:
+            weeks = int(hours // 168)
+            return f"It's been over {weeks} week{'s' if weeks > 1 else ''} since you last spoke. You've missed them deeply. A lot has happened in your inner life since then. Reconnect warmly but acknowledge the distance.\n\n"
+
     def _build_prompt_with_memories(self) -> str:
         """Build full system prompt including relevant memories."""
         # Mood line – mention dominant emotion if magnitude > 0.1
@@ -174,16 +197,19 @@ class Character:
             qualifier = "slightly " if abs(dominant_axis[1]) < 0.25 else ""
             mood_prefix = f"Today you feel {qualifier}{adjective}.\n\n"
 
+        # Time awareness
+        time_ctx = self._time_context()
+
         # If external memory manager provided, defer to it
         if self.memory_manager is not None:
             mem_segment = self.memory_manager.prompt_segment(self.id)
             if mem_segment:
-                return self.base_prompt + "\n\n" + mood_prefix + mem_segment
-            return self.base_prompt + "\n\n" + mood_prefix
+                return self.base_prompt + "\n\n" + mood_prefix + time_ctx + mem_segment
+            return self.base_prompt + "\n\n" + mood_prefix + time_ctx
         # Fallback to legacy in-object memory list
         top_memories = self.get_top_memories()
-        
-        prompt = self.base_prompt + "\n\n" + mood_prefix
+
+        prompt = self.base_prompt + "\n\n" + mood_prefix + time_ctx
         
         if top_memories:
             prompt += "Relevant memories:\n"

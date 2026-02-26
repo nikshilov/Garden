@@ -27,6 +27,7 @@ try:
     from garden_graph.cost_tracker import CostTracker
     from garden_graph.memory.manager import MemoryManager
     from garden_graph.config import INTIMACY_MODEL_DEFAULT
+    from garden_graph.heartbeat import Heartbeat
 except ModuleNotFoundError as exc:
     raise RuntimeError(
         "Cannot import garden_graph modules. Make sure you are running `uvicorn` from the `backend/` directory "
@@ -66,6 +67,24 @@ graph = create_world_chat_graph(
     cost_tracker=cost_tracker,
     memory_manager=memory_manager,
 )
+
+# --- Heartbeat (life between conversations) ---
+heartbeat = Heartbeat(
+    character_ids=list(character_models.keys()),
+    memory_manager=memory_manager,
+)
+
+
+@app.on_event("startup")
+async def on_startup():
+    await heartbeat.start()
+    logger.info("Garden is alive")
+
+
+@app.on_event("shutdown")
+async def on_shutdown():
+    await heartbeat.stop()
+    logger.info("Garden is sleeping")
 
 # Telegram configuration (tokens and webhook secrets)
 EVE_BOT_TOKEN = os.getenv("EVE_BOT_TOKEN", "")
@@ -151,6 +170,20 @@ class ChatResponse(BaseModel):
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+@app.get("/heartbeat/status")
+async def heartbeat_status():
+    return {
+        "running": heartbeat._running,
+        "interval_hours": float(os.getenv("HEARTBEAT_INTERVAL_HOURS", "6")),
+        "characters": heartbeat.character_ids,
+    }
+
+@app.post("/heartbeat/tick")
+async def manual_heartbeat_tick():
+    """Manually trigger a heartbeat tick (for testing/debugging)."""
+    await heartbeat.tick()
+    return {"ok": True, "message": "Heartbeat tick completed"}
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
