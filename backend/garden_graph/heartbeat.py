@@ -117,7 +117,10 @@ class Heartbeat:
         # 4. Cluster memories if enough have embeddings (Phase 2)
         self._cluster_memories(char_id)
 
-        # 5. Generate internal monologue
+        # 5. Process identity evolution (Phase 4)
+        self._evolve_identity(char_id)
+
+        # 6. Generate internal monologue
         await self._generate_internal_thought(char_id, now)
 
     def _drift_relationships(self, char_id: str, now: datetime):
@@ -205,6 +208,50 @@ class Heartbeat:
                 logger.info(f"[{char_id}] Found {len(clusters)} memory clusters")
         except Exception as e:
             logger.warning(f"[{char_id}] Clustering failed: {e}")
+
+    def _evolve_identity(self, char_id: str):
+        """Feed reflection results into the identity system (Phase 4).
+
+        Checks recent reflections for trait deltas and growth narratives,
+        then applies them to the character's evolving identity.
+        """
+        try:
+            from garden_graph.identity import IdentityManager
+            from garden_graph.memory.reflection import ReflectionManager
+
+            if not self.memory_manager:
+                return
+
+            reflection_mgr = self.memory_manager.reflection_mgr
+            all_refs = reflection_mgr.all_reflections(char_id)
+            if not all_refs:
+                return
+
+            data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+            id_mgr = IdentityManager(data_dir)
+            identity = id_mgr.get_or_create(char_id)
+
+            # Process reflections that have trait deltas or growth narratives
+            processed_ids = {gm.id for gm in identity.growth_memories}
+            for ref in all_refs:
+                if ref.id in processed_ids:
+                    continue  # already processed
+
+                # Apply trait deltas
+                if ref.traits_delta:
+                    id_mgr.update_traits(char_id, ref.traits_delta)
+                    logger.info(f"[{char_id}] Applied trait drift from reflection: {ref.traits_delta}")
+
+                # Record growth narrative
+                narrative = reflection_mgr.generate_growth_narrative(ref)
+                if narrative:
+                    id_mgr.record_growth(char_id, narrative, ref.traits_delta or {})
+                    logger.info(f"[{char_id}] Growth narrative: {narrative[:60]}...")
+
+        except ImportError:
+            pass  # identity module not available yet
+        except Exception as e:
+            logger.debug(f"[{char_id}] Identity evolution skipped: {e}")
 
     def _get_last_seen(self, char_id: str) -> Optional[datetime]:
         """Get last seen time for a character from persisted data."""

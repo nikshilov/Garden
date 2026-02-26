@@ -93,13 +93,13 @@ A character who has had 1000 conversations should not have the same personality 
 
 ### Tasks
 
-- [ ] **4.1 Identity layer** — Add a mutable "evolved identity" section to each character's prompt, separate from the base template. This section is updated by the reflection system.
+- [x] **4.1 Identity layer** — Add a mutable "evolved identity" section to each character's prompt, separate from the base template. This section is updated by the reflection system.
 
-- [ ] **4.2 Trait drift** — Track personality traits as continuous values (e.g., openness, assertiveness, warmth). These shift slowly based on conversations and reflections. A character who has many deep late-night conversations becomes more introspective.
+- [x] **4.2 Trait drift** — Track personality traits as continuous values (e.g., openness, assertiveness, warmth). These shift slowly based on conversations and reflections. A character who has many deep late-night conversations becomes more introspective.
 
-- [ ] **4.3 Growth narratives** — Characters can articulate how they've changed: "I used to avoid conflict, but after that conversation we had about boundaries, I've learned to speak up." Generated during reflection, stored as special "growth" memories.
+- [x] **4.3 Growth narratives** — Characters can articulate how they've changed: "I used to avoid conflict, but after that conversation we had about boundaries, I've learned to speak up." Generated during reflection, stored as special "growth" memories.
 
-- [ ] **4.4 Milestone memories** — Automatically detect significant moments (first conversation, first disagreement, first time the user shared something personal). Mark as permanent memories that resist decay.
+- [x] **4.4 Milestone memories** — Automatically detect significant moments (first conversation, first disagreement, first time the user shared something personal). Mark as permanent memories that resist decay.
 
 ---
 
@@ -190,7 +190,7 @@ Characters can notice when something is wrong and fix it, or ask for help.
 Phase 1 (Heartbeat)     ██████████  ✓ DONE
 Phase 2 (Roots)          ██████████  ✓ DONE
 Phase 3 (Mycelium)       ██████████  ✓ DONE
-Phase 4 (Growth)         ░░░░░░░░░░
+Phase 4 (Growth)         ██████████  ✓ DONE
 Phase 5 (Voice)          ░░░░░░░░░░
 Phase 6 (Soil)           ░░░░░░░░░░
 Phase 7 (Autonomy)       ░░░░░░░░░░

@@ -141,6 +141,16 @@ class Character:
         self.mood: MoodState = self._load_or_generate_mood()
         # Load last seen time from persistent storage
         self.last_seen_at = self._load_last_seen_time()
+
+        # ----- Identity evolution (Phase 4) -----
+        self._identity_manager = None
+        try:
+            from garden_graph.identity import IdentityManager
+            import os
+            data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+            self._identity_manager = IdentityManager(data_dir)
+        except Exception:
+            pass
         
     def add_memory(self, event: str, sentiment: int) -> Memory:
         """Add a new memory to this character."""
@@ -200,16 +210,26 @@ class Character:
         # Time awareness
         time_ctx = self._time_context()
 
+        # Identity evolution (Phase 4) — who they've become
+        identity_ctx = ""
+        if self._identity_manager:
+            try:
+                identity_ctx = self._identity_manager.identity_prompt_segment(self.id)
+                if identity_ctx:
+                    identity_ctx += "\n\n"
+            except Exception:
+                pass
+
         # If external memory manager provided, defer to it
         if self.memory_manager is not None:
             mem_segment = self.memory_manager.prompt_segment(self.id)
             if mem_segment:
-                return self.base_prompt + "\n\n" + mood_prefix + time_ctx + mem_segment
-            return self.base_prompt + "\n\n" + mood_prefix + time_ctx
+                return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx + mem_segment
+            return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx
         # Fallback to legacy in-object memory list
         top_memories = self.get_top_memories()
 
-        prompt = self.base_prompt + "\n\n" + mood_prefix + time_ctx
+        prompt = self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx
         
         if top_memories:
             prompt += "Relevant memories:\n"
@@ -303,6 +323,21 @@ class Character:
         self._save_last_seen_time()
         # Save mood state periodically (in case it was regenerated)
         self._save_mood_state()
+
+        # Phase 4: Track conversation count and check milestones
+        if self._identity_manager:
+            try:
+                self._identity_manager.increment_conversation(self.id)
+                # Detect first-conversation milestone
+                identity = self._identity_manager.get_or_create(self.id)
+                if identity.conversation_count == 1:
+                    self._identity_manager.check_milestone(
+                        self.id, "first_conversation",
+                        f"First conversation with the user."
+                    )
+            except Exception as e:
+                logger.debug(f"[{self.id}] Identity tracking: {e}")
+
         return response
         
     # ---------------- Mood persistence helpers ----------------
