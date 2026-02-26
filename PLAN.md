@@ -29,19 +29,19 @@ Characters should not freeze between conversations. When you come back after 3 d
 
 ### Tasks
 
-- [ ] **1.1 Heartbeat loop** — Background async task that runs every N hours (configurable, default 6h). For each character:
+- [x] **1.1 Heartbeat loop** — Background async task that runs every N hours (configurable, default 6h). For each character:
   - Decay mood naturally over time
   - Process any scheduled events
   - Update relationship drift (familiarity decays without contact, tension may resolve)
   - Log a brief "internal thought" to episodic memory based on current state
 
-- [ ] **1.2 Time-aware greetings** — When a user returns after absence, character's first message reflects the gap:
+- [x] **1.2 Time-aware greetings** — When a user returns after absence, character's first message reflects the gap:
   - < 1 hour: continues naturally
   - 1-24 hours: acknowledges the pause ("hey, welcome back")
   - 1-7 days: shows they noticed ("it's been a few days... I've been thinking about what you said")
   - 7+ days: deeper reconnection ("I missed you. A lot has happened in my head since we last talked")
 
-- [ ] **1.3 Internal monologue** — Each heartbeat tick, the character generates a brief internal thought (not shown to user, stored in episodic memory). These thoughts are influenced by:
+- [x] **1.3 Internal monologue** — Each heartbeat tick, the character generates a brief internal thought (not shown to user, stored in episodic memory). These thoughts are influenced by:
   - Recent conversation topics
   - Current mood state
   - Relationship state
@@ -56,16 +56,16 @@ Replace Jaccard word-matching with embeddings so that "I feel alone tonight" con
 
 ### Tasks
 
-- [ ] **2.1 Local embedding model** — Integrate a small embedding model (all-MiniLM-L6-v2 or similar, ~80MB). Run locally, no API calls. Use for:
+- [x] **2.1 Local embedding model** — Integrate a small embedding model (all-MiniLM-L6-v2 or similar, ~80MB). Run locally, no API calls. Use for:
   - Memory retrieval (replace Jaccard in episodic.py)
   - Memory clustering (find thematic groups)
   - Similarity between current message and stored memories
 
-- [ ] **2.2 Embed on write** — When a memory is created, compute and store its embedding vector alongside the text. Store in a simple numpy array or sqlite-vec.
+- [x] **2.2 Embed on write** — When a memory is created, compute and store its embedding vector alongside the text. Store in a simple numpy array or sqlite-vec.
 
-- [ ] **2.3 Semantic search** — Replace `EpisodicStore.search()` Jaccard with cosine similarity on embeddings. Keep recency boost. Fallback to Jaccard if embedding model unavailable.
+- [x] **2.3 Semantic search** — Replace `EpisodicStore.search()` Jaccard with cosine similarity on embeddings. Keep recency boost. Fallback to Jaccard if embedding model unavailable.
 
-- [ ] **2.4 Memory clustering** — Periodically (during heartbeat), cluster related memories together. "These 5 memories are all about your relationship with your sister." Clusters feed into reflections.
+- [x] **2.4 Memory clustering** — Periodically (during heartbeat), cluster related memories together. "These 5 memories are all about your relationship with your sister." Clusters feed into reflections.
 
 ---
 
@@ -187,8 +187,8 @@ Characters can notice when something is wrong and fix it, or ask for help.
 ## Order of Work
 
 ```
-Phase 1 (Heartbeat)     ████░░░░░░  ← START HERE
-Phase 2 (Roots)          ░░░░░░░░░░
+Phase 1 (Heartbeat)     ██████████  ✓ DONE
+Phase 2 (Roots)          ██████████  ✓ DONE
 Phase 3 (Mycelium)       ░░░░░░░░░░
 Phase 4 (Growth)         ░░░░░░░░░░
 Phase 5 (Voice)          ░░░░░░░░░░

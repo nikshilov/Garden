@@ -109,7 +109,15 @@ class Heartbeat:
         # 2. Drift relationships (familiarity decays without contact)
         self._drift_relationships(char_id, now)
 
-        # 3. Generate internal monologue
+        # 3. Backfill embeddings for old memories (Phase 2)
+        backfilled = self.episodic_store.backfill_embeddings(char_id, batch_size=20)
+        if backfilled:
+            logger.info(f"[{char_id}] Backfilled {backfilled} memory embeddings")
+
+        # 4. Cluster memories if enough have embeddings (Phase 2)
+        self._cluster_memories(char_id)
+
+        # 5. Generate internal monologue
         await self._generate_internal_thought(char_id, now)
 
     def _drift_relationships(self, char_id: str, now: datetime):
@@ -150,6 +158,46 @@ class Heartbeat:
 
         self.memory_manager.relationships[char_id] = rel
         logger.debug(f"[{char_id}] Relationship drift applied (days_absent={days_absent:.1f})")
+
+    def _cluster_memories(self, char_id: str):
+        """Cluster related episodic memories by embedding similarity.
+
+        Results are stored as a JSON file per character that can feed into
+        the reflection system. Only runs when enough embedded records exist.
+        """
+        import json as _json
+        records = self.episodic_store._load(char_id)
+        embedded = [r for r in records if r.embedding is not None]
+        if len(embedded) < 5:
+            return  # not enough data to cluster meaningfully
+
+        try:
+            import numpy as np
+            from garden_graph.memory.clustering import cluster_memories
+
+            embeddings = np.array([r.embedding for r in embedded], dtype=np.float32)
+            ids = [r.id for r in embedded]
+            summaries = [r.summary for r in embedded]
+
+            clusters = cluster_memories(
+                embeddings, ids, summaries,
+                min_cluster_size=3, similarity_threshold=0.45,
+            )
+
+            if clusters:
+                # Persist clusters for the reflection system
+                data_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+                os.makedirs(data_dir, exist_ok=True)
+                path = os.path.join(data_dir, f"clusters_{char_id}.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    _json.dump(
+                        [{"label": c.label, "record_ids": c.record_ids,
+                          "coherence": c.coherence} for c in clusters],
+                        f, ensure_ascii=False, indent=2,
+                    )
+                logger.info(f"[{char_id}] Found {len(clusters)} memory clusters")
+        except Exception as e:
+            logger.warning(f"[{char_id}] Clustering failed: {e}")
 
     def _get_last_seen(self, char_id: str) -> Optional[datetime]:
         """Get last seen time for a character from persisted data."""
