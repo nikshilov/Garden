@@ -291,7 +291,16 @@ After seeing what {' and '.join([characters[oid].name for oid in responses if oi
 
 Be natural in your response - you may agree, partially agree, or have a different take. If you genuinely have nothing to add, just respond with "pass".
 Keep it brief (1-2 sentences) and respond in the same language as the conversation."""
-            
+
+            # Inject character-to-character relationship context
+            if memory_manager:
+                try:
+                    char_rel_ctx = memory_manager.char_relationship_context(char_id)
+                    if char_rel_ctx:
+                        cross_talk_prompt += "\n\n" + char_rel_ctx
+                except Exception as e:
+                    logger.warning(f"cross_talk_node:{char_id} failed to get relationship context: {e}")
+
             character = characters[char_id]
             logger.debug(f"cross_talk_node:{char_id} generating cross-talk response")
             
@@ -315,6 +324,20 @@ Keep it brief (1-2 sentences) and respond in the same language as the conversati
                 if cross_talk_response.lower() != "pass" and len(cross_talk_response) > 5:
                     cross_talk_responses[char_id] = cross_talk_response
                     logger.debug(f"cross_talk_node:{char_id} added cross-talk: '{cross_talk_response[:30]}...'")
+
+                    # Store cross-talk interaction in both characters' memories
+                    if memory_manager:
+                        for other_id in responses:
+                            if other_id != char_id:
+                                try:
+                                    memory_manager.process_cross_talk(
+                                        from_char=char_id,
+                                        to_char=other_id,
+                                        interaction_text=responses[other_id],  # what the other said
+                                        response_text=cross_talk_response,      # how this char reacted
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"cross_talk_node: failed to process cross-talk memory for {char_id}->{other_id}: {e}")
                 else:
                     logger.debug(f"cross_talk_node:{char_id} character passed on cross-talk")
                     

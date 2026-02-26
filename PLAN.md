@@ -76,13 +76,13 @@ Eve and Atlas share a garden. They should have opinions about each other, rememb
 
 ### Tasks
 
-- [ ] **3.1 Character-to-character relationship axes** — Extend the 10-axis model to track relationships between characters, not just user↔character. Store as `relationships[eve][atlas] = {affection: 0.3, trust: 0.7, ...}`
+- [x] **3.1 Character-to-character relationship axes** — Extend the 10-axis model to track relationships between characters, not just user↔character. Store as `relationships[eve][atlas] = {affection: 0.3, trust: 0.7, ...}`
 
-- [ ] **3.2 Cross-talk memory** — When characters interact during cross-talk, store that interaction in both characters' memories. Eve remembers what Atlas said and how it made her feel.
+- [x] **3.2 Cross-talk memory** — When characters interact during cross-talk, store that interaction in both characters' memories. Eve remembers what Atlas said and how it made her feel.
 
-- [ ] **3.3 Character opinions** — During reflection, characters can form opinions about other characters based on accumulated cross-talk memories. "Atlas is reliable but sometimes misses the emotional point."
+- [x] **3.3 Character opinions** — During reflection, characters can form opinions about other characters based on accumulated cross-talk memories. "Atlas is reliable but sometimes misses the emotional point."
 
-- [ ] **3.4 Alliances and tensions** — When a user asks a question, if Eve knows Atlas disagrees on this topic (from past cross-talk), she might say so: "Atlas would probably say X, but I think..."
+- [x] **3.4 Alliances and tensions** — When a user asks a question, if Eve knows Atlas disagrees on this topic (from past cross-talk), she might say so: "Atlas would probably say X, but I think..."
 
 ---
 
@@ -189,7 +189,7 @@ Characters can notice when something is wrong and fix it, or ask for help.
 ```
 Phase 1 (Heartbeat)     ██████████  ✓ DONE
 Phase 2 (Roots)          ██████████  ✓ DONE
-Phase 3 (Mycelium)       ░░░░░░░░░░
+Phase 3 (Mycelium)       ██████████  ✓ DONE
 Phase 4 (Growth)         ░░░░░░░░░░
 Phase 5 (Voice)          ░░░░░░░░░░
 Phase 6 (Soil)           ░░░░░░░░░░

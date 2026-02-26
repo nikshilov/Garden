@@ -265,7 +265,16 @@ class Character:
         # Add event context if any
         if event_context:
             system_prompt += "\n\nIMPORTANT SCHEDULING INFORMATION:" + event_context
-            
+
+        # Add inter-character relationship context for multi-character conversations
+        if self.memory_manager:
+            try:
+                char_rel_ctx = self.memory_manager.char_relationship_context(self.id)
+                if char_rel_ctx:
+                    system_prompt += "\n\n" + char_rel_ctx
+            except Exception as e:
+                logger.warning(f"[{self.id}] Failed to get character relationship context: {e}")
+
         logger.debug(f"[{self.id}] System prompt begins with: {system_prompt[:200]}...")
         
         messages = [

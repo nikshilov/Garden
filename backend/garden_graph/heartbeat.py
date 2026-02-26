@@ -159,6 +159,13 @@ class Heartbeat:
         self.memory_manager.relationships[char_id] = rel
         logger.debug(f"[{char_id}] Relationship drift applied (days_absent={days_absent:.1f})")
 
+        # Phase 3: Also drift character-to-character relationships
+        try:
+            if hasattr(self.memory_manager, 'decay_char_relationships'):
+                self.memory_manager.decay_char_relationships()
+        except Exception as e:
+            logger.debug(f"[{char_id}] Char relationship decay skipped: {e}")
+
     def _cluster_memories(self, char_id: str):
         """Cluster related episodic memories by embedding similarity.
 

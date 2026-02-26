@@ -40,6 +40,7 @@ backend/garden_graph/data/relationships.json
 backend/garden_graph/data/scheduled_events.json
 backend/garden_graph/data/episodic_*.json
 backend/garden_graph/data/clusters_*.json
+backend/garden_graph/data/char_relationships.json
 
 # Taskmaster runtime state
 .taskmaster/state.json

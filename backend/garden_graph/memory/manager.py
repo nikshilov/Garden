@@ -287,7 +287,13 @@ class MemoryManager:
         # --- Relationship tracking ---
         self.relationship_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'relationships.json')
         self.relationships = self._load_relationships()
-        
+
+        # --- Character-to-character relationship tracking (Phase 3: Mycelium) ---
+        self.char_relationship_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', 'char_relationships.json')
+        self.char_relationships: Dict[str, Dict[str, Dict[str, float]]] = {}
+        if autoload:
+            self.char_relationships = self._load_char_relationships()
+
         # Apply passive decay once at init (will update save later)
         self._apply_passive_decay()
         
@@ -1344,7 +1350,214 @@ Return JSON with:
             for axis in RELATIONSHIP_AXES:
                 val = axes.get(axis, 0.0)
                 axes[axis] = val * (1.0 - decay_factor)
-        
+
         self._last_decay_ts = now
         # Immediately save to persist updated values
         self._save_relationships()
+
+    # ============================================================
+    # Phase 3 — Mycelium: Character-to-Character Relationships
+    # ============================================================
+
+    _CHAR_REL_META_KEY = "__meta__"
+
+    def _load_char_relationships(self) -> Dict[str, Dict[str, Dict[str, float]]]:
+        """Load character-to-character relationships from char_relationships.json."""
+        try:
+            if os.path.exists(self.char_relationship_path):
+                with open(self.char_relationship_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+
+                # Extract meta
+                meta = data.pop(self._CHAR_REL_META_KEY, None)
+                if meta and isinstance(meta, dict):
+                    ts = meta.get("last_decay")
+                    try:
+                        self._char_rel_last_decay_ts = datetime.fromisoformat(ts) if ts else None
+                    except Exception:
+                        self._char_rel_last_decay_ts = None
+                else:
+                    self._char_rel_last_decay_ts = None
+
+                out: Dict[str, Dict[str, Dict[str, float]]] = {}
+                for from_char, targets in data.items():
+                    if not isinstance(targets, dict):
+                        continue
+                    out[from_char] = {}
+                    for to_char, axes in targets.items():
+                        if not isinstance(axes, dict):
+                            continue
+                        out[from_char][to_char] = self._ensure_axis_defaults(
+                            {k: float(v) for k, v in axes.items()}
+                        )
+                return out
+        except Exception as e:
+            print(f"[MemoryManager] Error loading char_relationships: {e}")
+        return {}
+
+    def _save_char_relationships(self):
+        """Persist character-to-character relationships to char_relationships.json."""
+        try:
+            import pathlib
+            pathlib.Path(self.char_relationship_path).parent.mkdir(parents=True, exist_ok=True)
+
+            to_dump = {}
+            for from_char, targets in self.char_relationships.items():
+                to_dump[from_char] = {to_char: dict(axes) for to_char, axes in targets.items()}
+
+            to_dump[self._CHAR_REL_META_KEY] = {
+                "last_decay": getattr(self, "_char_rel_last_decay_ts", datetime.now(timezone.utc)).isoformat()
+            }
+
+            with open(self.char_relationship_path, "w", encoding="utf-8") as f:
+                json.dump(to_dump, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            print(f"[MemoryManager] Error saving char_relationships: {e}")
+
+    def update_char_relationship(
+        self,
+        from_char: str,
+        to_char: str,
+        emotions: Dict[str, float],
+        category: str,
+        significance: float,
+    ) -> Dict[str, float]:
+        """Update a character-to-character relationship along multi-axis dimensions.
+
+        Same axis math as _update_relationship but without mood amplification.
+        Returns the delta dict that was applied.
+        """
+        scaled_deltas: Dict[str, float] = {}
+
+        # Fine-grained emotion mapping
+        for emo, intensity in emotions.items():
+            weights = EMOTION_AXIS_WEIGHTS.get(emo, {})
+            for axis, w in weights.items():
+                scaled_deltas[axis] = scaled_deltas.get(axis, 0.0) + intensity * w * 0.3
+
+        # Fallback: category-based deltas
+        if not scaled_deltas:
+            cat_weights = CATEGORY_AXIS_WEIGHTS.get(category, {})
+            for axis, w in cat_weights.items():
+                scaled_deltas[axis] = scaled_deltas.get(axis, 0.0) + significance * w * 0.1
+
+        if not scaled_deltas:
+            return {}
+
+        # Ensure nested dicts exist
+        if from_char not in self.char_relationships:
+            self.char_relationships[from_char] = {}
+        if to_char not in self.char_relationships[from_char]:
+            self.char_relationships[from_char][to_char] = {axis: 0.0 for axis in RELATIONSHIP_AXES}
+
+        rel = self.char_relationships[from_char][to_char]
+        self._ensure_axis_defaults(rel)
+
+        for axis, delta in scaled_deltas.items():
+            rel[axis] = max(-1.0, min(1.0, rel.get(axis, 0.0) + delta))
+
+        self._save_char_relationships()
+        return scaled_deltas
+
+    def process_cross_talk(
+        self,
+        from_char: str,
+        to_char: str,
+        interaction_text: str,
+        response_text: str,
+    ) -> Dict[str, float]:
+        """Process a cross-talk interaction between two characters.
+
+        1. Analyses the emotional content of the exchange.
+        2. Updates from_char's relationship toward to_char.
+        3. Creates a memory for from_char about the interaction.
+        4. Returns the relationship delta.
+        """
+        # Analyse sentiment / emotions via the existing LLM helper
+        combined_text = f"{to_char} said: {interaction_text}\nI responded: {response_text}"
+        significance, category, emotions = self._analyze_message_llm(from_char, combined_text)
+
+        # Update the character-to-character relationship
+        delta = self.update_char_relationship(from_char, to_char, emotions, category, significance)
+
+        # Create a memory for from_char about the interaction
+        snippet_in = interaction_text[:80]
+        snippet_out = response_text[:80]
+        memory_text = f"[cross-talk] {to_char} said \"{snippet_in}\" and I responded \"{snippet_out}\""
+
+        sentiment = int(round(significance))
+        self.create(
+            character_id=from_char,
+            event_text=memory_text[:500],
+            sentiment=sentiment,
+            sentiment_label=category,
+            emotions=emotions,
+        )
+
+        return delta
+
+    def char_relationship_context(self, char_id: str) -> str:
+        """Build a prompt segment describing this character's relationships with other characters.
+
+        Only includes axes with abs value > 0.15 to keep it concise.
+        """
+        targets = self.char_relationships.get(char_id, {})
+        if not targets:
+            return ""
+
+        def _describe_axis(axis: str, value: float) -> str:
+            mag = abs(value)
+            if mag > 0.7:
+                strength = "very high"
+            elif mag > 0.5:
+                strength = "high"
+            elif mag > 0.3:
+                strength = "moderate"
+            else:
+                strength = "some"
+            sign = "+" if value >= 0 else "-"
+            return f"{strength} {axis} ({sign}{mag:.1f})"
+
+        lines = ["Your relationships with other characters:"]
+        for to_char, axes in sorted(targets.items()):
+            notable = []
+            for axis in RELATIONSHIP_AXES:
+                val = axes.get(axis, 0.0)
+                if abs(val) > 0.15:
+                    notable.append(_describe_axis(axis, val))
+            if notable:
+                lines.append(f"- {to_char.capitalize()}: {', '.join(notable)}")
+
+        if len(lines) == 1:
+            # header only, nothing notable
+            return ""
+        return "\n".join(lines)
+
+    def decay_char_relationships(self):
+        """Apply passive decay to all character-to-character relationships.
+
+        Intended to be called during heartbeat, uses the same rate as user
+        relationships (RELATIONSHIP_DECAY).
+        """
+        now = datetime.now(timezone.utc)
+        last_ts = getattr(self, "_char_rel_last_decay_ts", None)
+        if last_ts is None:
+            self._char_rel_last_decay_ts = now
+            return
+
+        hours = (now - last_ts).total_seconds() / 3600.0
+        if hours <= 0.01:
+            return
+
+        decay_factor = RELATIONSHIP_DECAY * (hours / 24.0)
+        if decay_factor <= 0:
+            return
+
+        for from_char, targets in self.char_relationships.items():
+            for to_char, axes in targets.items():
+                for axis in RELATIONSHIP_AXES:
+                    val = axes.get(axis, 0.0)
+                    axes[axis] = val * (1.0 - decay_factor)
+
+        self._char_rel_last_decay_ts = now
+        self._save_char_relationships()
