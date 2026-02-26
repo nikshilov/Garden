@@ -4,10 +4,13 @@ Each character has its own file: data/episodic_<char>.json
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from dataclasses import dataclass, asdict
-from datetime import datetime
+
+logger = logging.getLogger("garden.memory.episodic")
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 from collections import Counter
 
@@ -31,7 +34,7 @@ class EpisodicRecord:
         except Exception:
             # Fallback to word count × 1.3 ≈ tokens
             tokens = int(len(summary.split()) * 1.3)
-        return cls(id=str(uuid.uuid4()), summary=summary, token_count=tokens, created_at=datetime.utcnow().isoformat())
+        return cls(id=str(uuid.uuid4()), summary=summary, token_count=tokens, created_at=datetime.now(timezone.utc).isoformat())
 
 
 class EpisodicStore:
@@ -79,7 +82,7 @@ class EpisodicStore:
         if not records:
             return []
         q_set = set(query.lower().split())
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         scored = []
         for r in records:
             s_set = set(r.summary.lower().split())

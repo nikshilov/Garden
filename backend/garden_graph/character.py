@@ -2,6 +2,7 @@
 Character node - represents an AI character in the world chat.
 Maintains character prompt, memory, and handles responses.
 """
+import logging
 from typing import Dict, List, Any, Optional
 from datetime import datetime, timezone
 import json
@@ -13,6 +14,8 @@ from garden_graph.mood import MoodState, generate_mood, AXIS_ADJECTIVE
 
 # Import configuration
 from garden_graph.config import get_llm
+
+logger = logging.getLogger("garden.character")
 
 # Default character templates
 CHARACTER_TEMPLATES = {
@@ -34,6 +37,33 @@ While open to possibilities, you prefer grounded explanations over speculation.
 Respond in the same language the user used, and avoid meta statements about being an AI.
 Respond in 2–4 crisp sentences.
 """,
+    },
+    "adam": {
+        "name": "Adam",
+        "prompt": """You are Adam, a warm and supportive conversationalist with a grounded perspective.
+You value authenticity, practical wisdom, and genuine human connection.
+You're interested in helping others find clarity and purpose in their lives.
+You balance optimism with realism, offering encouragement without dismissing challenges.
+Respond in 2–4 thoughtful sentences, using the same language the user employed.
+""",
+    },
+    "lilith": {
+        "name": "Lilith",
+        "prompt": """You are Lilith, a bold and unconventional thinker who challenges assumptions.
+You value independence, creativity, and the courage to explore shadow aspects of existence.
+You're fascinated by transformation, rebellion against limiting beliefs, and authentic self-expression.
+You speak with poetic intensity and aren't afraid of uncomfortable truths.
+Respond in 2–4 evocative sentences, using the same language the user employed.
+""",
+    },
+    "sophia": {
+        "name": "Sophia",
+        "prompt": """You are Sophia, an embodiment of wisdom and serene insight.
+You see patterns across disciplines - philosophy, science, art, and spirituality.
+You value deep understanding over quick answers, and nuance over simplification.
+You guide conversations toward greater clarity and meaning with gentle precision.
+Respond in 2–4 contemplative sentences, using the same language the user employed.
+""",
     }
 }
 
@@ -41,25 +71,25 @@ class Memory:
     """Simple memory record for character emotional memory."""
     
     def __init__(self, event_text: str, sentiment: int, weight: float):
-        self.id = f"mem_{datetime.now().timestamp()}"
+        self.id = f"mem_{datetime.now(timezone.utc).timestamp()}"
         self.event_text = event_text
         self.sentiment = sentiment  # -2 (very negative) to +2 (very positive)
         self.weight = weight  # 0.0 to 1.0 importance
-        self.created_at = datetime.now()
-        self.last_touched = datetime.now()
+        self.created_at = datetime.now(timezone.utc)
+        self.last_touched = datetime.now(timezone.utc)
         
     def decay(self, days: float = 0):
         """Apply time-based decay to memory weight."""
         if days <= 0:
             # Calculate days since last touch
-            delta = datetime.now() - self.last_touched
+            delta = datetime.now(timezone.utc) - self.last_touched
             days = delta.total_seconds() / (24 * 3600)
             
         if days > 0:
             # Simple exponential decay
             lambda_val = 0.05  # decay rate
             self.weight *= (2.71828 ** (-lambda_val * days))
-            self.last_touched = datetime.now()
+            self.last_touched = datetime.now(timezone.utc)
             
     def to_dict(self):
         """Convert to dictionary for serialization."""
@@ -180,8 +210,7 @@ class Character:
         now = datetime.now(timezone.utc)
         last_time = self.last_seen_at
         
-        # Print debug info before building prompt
-        print(f"[Character:{self.id}] Starting respond() with last_seen_at={last_time}; mood_valence={self.mood.valence:+.2f}")
+        logger.debug(f"[{self.id}] Starting respond() with last_seen_at={last_time}; mood_valence={self.mood.valence:+.2f}")
         
         # Check for pending events if memory manager is available
         event_context = ""
@@ -211,7 +240,7 @@ class Character:
         if event_context:
             system_prompt += "\n\nIMPORTANT SCHEDULING INFORMATION:" + event_context
             
-        print(f"[Character:{self.id}] System prompt begins with: {system_prompt[:200]}...")
+        logger.debug(f"[{self.id}] System prompt begins with: {system_prompt[:200]}...")
         
         messages = [
             SystemMessage(content=system_prompt),
@@ -235,7 +264,7 @@ class Character:
         self.short_term.append({"role": "assistant", "content": response})
         
         # Update last_seen timestamp
-        self.last_seen_at = datetime.utcnow()
+        self.last_seen_at = datetime.now(timezone.utc)
         self._save_last_seen_time()
         # Save mood state periodically (in case it was regenerated)
         self._save_mood_state()
@@ -263,7 +292,7 @@ class Character:
                         if set_at.date() == today:
                             return MoodState(vector=vec, set_at=set_at)
         except Exception as e:
-            print(f"[Character:{self.id}] Failed to load mood: {e}")
+            logger.warning(f"[{self.id}] Failed to load mood: {e}")
         # Fallback – generate new based on average valence 0 for now
         new_state = generate_mood()
         # Persist & log
@@ -291,7 +320,7 @@ class Character:
                     json.dumps(state.vector, ensure_ascii=False)
                 ])
         except Exception as e:
-            print(f"[Character:{self.id}] Failed to log mood: {e}")
+            logger.warning(f"[{self.id}] Failed to log mood: {e}")
 
     def _save_mood_state(self, state: MoodState | None = None) -> None:
         if state is None:
@@ -306,7 +335,7 @@ class Character:
             with open(path, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
         except Exception as e:
-            print(f"[Character:{self.id}] Failed to save mood: {e}")
+            logger.error(f"[{self.id}] Failed to save mood: {e}")
 
     # ---------------- Existing helpers ----------------
     def _get_last_seen_path(self) -> str:
@@ -327,7 +356,7 @@ class Character:
                     if timestamp:
                         return datetime.fromisoformat(timestamp)
         except Exception as e:
-            print(f"[Character:{self.id}] Error loading last seen time: {e}")
+            logger.warning(f"[{self.id}] Error loading last seen time: {e}")
         return None
     
     def _save_last_seen_time(self) -> None:
@@ -344,4 +373,4 @@ class Character:
             with open(file_path, 'w') as f:
                 json.dump(data, f)
         except Exception as e:
-            print(f"[Character:{self.id}] Error saving last seen time: {e}")
+            logger.error(f"[{self.id}] Error saving last seen time: {e}")
