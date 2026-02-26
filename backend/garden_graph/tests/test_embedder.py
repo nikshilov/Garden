@@ -1,5 +1,7 @@
 """Tests for the embedding engine (Phase 2)."""
+import json
 import unittest
+from unittest.mock import patch, MagicMock
 import numpy as np
 
 
@@ -133,6 +135,118 @@ class TestClustering(unittest.TestCase):
             min_cluster_size=2, similarity_threshold=0.99,
         )
         self.assertEqual(clusters, [])
+
+
+class TestAPIEmbedder(unittest.TestCase):
+    """Test the API-based embedding backend (LM Studio / OpenAI / OpenRouter)."""
+
+    def _make_api_response(self, texts, dim=384):
+        """Create a mock OpenAI-compatible embeddings response."""
+        data = []
+        for i, _ in enumerate(texts):
+            # Deterministic fake embedding based on text hash
+            rng = np.random.RandomState(hash(texts[i]) % 2**31)
+            vec = rng.randn(dim).astype(np.float32).tolist()
+            data.append({"index": i, "embedding": vec})
+        return {"data": data, "model": "test-model", "usage": {"total_tokens": 10}}
+
+    @patch("httpx.post")
+    def test_api_embedder_encode(self, mock_post):
+        from garden_graph.memory.embedder import APIEmbedder
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = self._make_api_response(["hello"], dim=768)
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        emb = APIEmbedder(
+            base_url="http://192.168.1.100:1234",
+            model="nomic-embed-text",
+            dim=768,
+        )
+        vec = emb.encode("hello")
+        self.assertEqual(vec.shape, (768,))
+        self.assertEqual(vec.dtype, np.float32)
+
+        # Verify correct URL called
+        mock_post.assert_called_once()
+        call_url = mock_post.call_args[1].get("url") or mock_post.call_args[0][0]
+        self.assertIn("/v1/embeddings", call_url)
+
+    @patch("httpx.post")
+    def test_api_embedder_batch(self, mock_post):
+        from garden_graph.memory.embedder import APIEmbedder
+
+        texts = ["hello", "world", "test"]
+        mock_response = MagicMock()
+        mock_response.json.return_value = self._make_api_response(texts, dim=512)
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        emb = APIEmbedder(base_url="http://localhost:1234", model="test", dim=512)
+        vecs = emb.encode_batch(texts)
+        self.assertEqual(vecs.shape, (3, 512))
+
+    @patch("httpx.post")
+    def test_api_embedder_auth_header(self, mock_post):
+        from garden_graph.memory.embedder import APIEmbedder
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = self._make_api_response(["hi"])
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        emb = APIEmbedder(
+            base_url="https://api.openai.com",
+            api_key="sk-test-key",
+            model="text-embedding-3-small",
+        )
+        emb.encode("hi")
+
+        headers = mock_post.call_args[1].get("headers", {})
+        self.assertEqual(headers.get("Authorization"), "Bearer sk-test-key")
+
+    @patch("httpx.post")
+    def test_api_embedder_dim_autodetect(self, mock_post):
+        from garden_graph.memory.embedder import APIEmbedder
+
+        mock_response = MagicMock()
+        mock_response.json.return_value = self._make_api_response(["probe"], dim=1024)
+        mock_response.raise_for_status = MagicMock()
+        mock_post.return_value = mock_response
+
+        emb = APIEmbedder(base_url="http://localhost:1234", model="big-model")
+        # dim not set, should auto-detect on first call
+        self.assertEqual(emb.dim, 1024)
+
+    def test_embedder_backend_selection_local(self):
+        """Default backend should be local."""
+        from garden_graph.memory.embedder import Embedder, LocalEmbedder
+        with patch.dict("os.environ", {"EMBEDDING_BACKEND": "local"}, clear=False):
+            emb = Embedder()
+            self.assertIsInstance(emb._backend, LocalEmbedder)
+
+    def test_embedder_backend_selection_lmstudio(self):
+        from garden_graph.memory.embedder import Embedder, APIEmbedder
+        env = {
+            "EMBEDDING_BACKEND": "lmstudio",
+            "EMBEDDING_API_URL": "http://100.64.0.1:1234",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            emb = Embedder()
+            self.assertIsInstance(emb._backend, APIEmbedder)
+            self.assertIn("100.64.0.1", emb._backend._base_url)
+
+    def test_embedder_backend_selection_openai(self):
+        from garden_graph.memory.embedder import Embedder, APIEmbedder
+        env = {
+            "EMBEDDING_BACKEND": "openai",
+            "EMBEDDING_API_KEY": "sk-test",
+        }
+        with patch.dict("os.environ", env, clear=False):
+            emb = Embedder()
+            self.assertIsInstance(emb._backend, APIEmbedder)
+            self.assertIn("openai.com", emb._backend._base_url)
 
 
 if __name__ == "__main__":
