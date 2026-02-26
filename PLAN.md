@@ -110,21 +110,21 @@ The hardest and most meaningful feature. Characters should be able to reach out 
 
 ### Tasks
 
-- [ ] **5.1 Initiative engine** — During heartbeat, evaluate whether a character has something worth saying:
+- [x] **5.1 Initiative engine** — During heartbeat, evaluate whether a character has something worth saying:
   - A scheduled event is happening
   - It's been too long since last contact (loneliness threshold)
   - A reflection produced an insight they want to share
   - A significant date (anniversary of first conversation, etc.)
   - Current mood is extreme (very happy or very sad)
 
-- [ ] **5.2 Push notification bridge** — iOS push notifications via APNs. When initiative engine fires:
+- [x] **5.2 Push notification bridge** — iOS push notifications via APNs. When initiative engine fires:
   - Generate a brief message from the character
   - Send as push notification with character name
   - Store in message history so the conversation continues naturally when user opens app
 
-- [ ] **5.3 Conversation starters** — Characters can propose topics, not just respond. "I've been thinking about something you said last week..." or "I had a thought about consciousness today."
+- [x] **5.3 Conversation starters** — Characters can propose topics, not just respond. "I've been thinking about something you said last week..." or "I had a thought about consciousness today."
 
-- [ ] **5.4 Respectful boundaries** — Never spam. Max 1 initiative per character per day. User can set quiet hours. User can disable initiative per character. A dismissed notification reduces future initiative probability.
+- [x] **5.4 Respectful boundaries** — Never spam. Max 1 initiative per character per day. User can set quiet hours. User can disable initiative per character. A dismissed notification reduces future initiative probability.
 
 ---
 
@@ -191,7 +191,7 @@ Phase 1 (Heartbeat)     ██████████  ✓ DONE
 Phase 2 (Roots)          ██████████  ✓ DONE
 Phase 3 (Mycelium)       ██████████  ✓ DONE
 Phase 4 (Growth)         ██████████  ✓ DONE
-Phase 5 (Voice)          ░░░░░░░░░░
+Phase 5 (Voice)          ██████████  ✓ DONE
 Phase 6 (Soil)           ░░░░░░░░░░
 Phase 7 (Autonomy)       ░░░░░░░░░░
 ```

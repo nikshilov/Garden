@@ -14,6 +14,7 @@ import os
 import time
 import uuid
 import asyncio
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Set, Optional
 
 from fastapi import FastAPI, HTTPException, Request
@@ -33,6 +34,17 @@ except ModuleNotFoundError as exc:
         "Cannot import garden_graph modules. Make sure you are running `uvicorn` from the `backend/` directory "
         "so that it is on PYTHONPATH."
     ) from exc
+
+# Initiative engine (Phase 5 — Voice: Reaching Out) — optional, graceful degradation
+try:
+    from garden_graph.initiative import InitiativeEngine
+    _initiative_available = True
+except ImportError:
+    InitiativeEngine = None  # type: ignore[misc, assignment]
+    _initiative_available = False
+    logging.getLogger("garden.server").warning(
+        "garden_graph.initiative not found — initiative features disabled"
+    )
 
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
@@ -74,10 +86,78 @@ heartbeat = Heartbeat(
     memory_manager=memory_manager,
 )
 
+# --- Initiative engine (characters reaching out) ---
+initiative_engine = None
+if _initiative_available and InitiativeEngine is not None:
+    initiative_engine = InitiativeEngine(memory_manager=memory_manager)
+    logger.info("Initiative engine initialized")
+
+# Store pending initiatives for the notification system to pick up
+_pending_initiatives: List[Dict] = []
+
+# Default initiative settings
+_initiative_settings: Dict[str, Any] = {
+    "enabled": True,
+    "check_interval_seconds": 3600,
+    "quiet_hours_start": None,   # e.g. 23 (11pm)
+    "quiet_hours_end": None,     # e.g. 8  (8am)
+    "disabled_characters": [],   # character IDs that should not send initiatives
+}
+
+
+async def _initiative_loop():
+    """Check for character initiatives periodically."""
+    while True:
+        interval = _initiative_settings.get("check_interval_seconds", 3600)
+        await asyncio.sleep(interval)
+
+        if not initiative_engine or not _initiative_settings.get("enabled", True):
+            continue
+
+        now = datetime.now(timezone.utc)
+
+        # Respect quiet hours
+        quiet_start = _initiative_settings.get("quiet_hours_start")
+        quiet_end = _initiative_settings.get("quiet_hours_end")
+        if quiet_start is not None and quiet_end is not None:
+            current_hour = now.hour
+            if quiet_start > quiet_end:  # wraps midnight, e.g. 23-8
+                if current_hour >= quiet_start or current_hour < quiet_end:
+                    continue
+            else:
+                if quiet_start <= current_hour < quiet_end:
+                    continue
+
+        disabled = set(_initiative_settings.get("disabled_characters", []))
+
+        for char_id in character_models:
+            if char_id in disabled:
+                continue
+            try:
+                result = initiative_engine.evaluate(char_id, now)
+                if result:
+                    from garden_graph.config import get_llm
+                    llm = get_llm(os.getenv("HEARTBEAT_MODEL", "gpt-4o-mini"), temperature=0.9)
+                    message = initiative_engine.generate_message(result, llm)
+                    if message:
+                        _pending_initiatives.append({
+                            "id": str(uuid.uuid4()),
+                            "char_id": char_id,
+                            "trigger": result.trigger,
+                            "message": message,
+                            "created_at": result.created_at,
+                        })
+                        logger.info(f"Initiative from {char_id}: {message[:50]}...")
+            except Exception as e:
+                logger.warning(f"Initiative check failed for {char_id}: {e}")
+
 
 @app.on_event("startup")
 async def on_startup():
     await heartbeat.start()
+    if initiative_engine:
+        asyncio.create_task(_initiative_loop())
+        logger.info("Initiative loop started")
     logger.info("Garden is alive")
 
 
@@ -336,6 +416,96 @@ async def tg_adam_webhook(request: Request) -> Dict[str, bool]:
         pass
 
     return {"ok": True}
+
+# --- Initiative Endpoints (Phase 5 — Voice: Reaching Out) ---------------------
+
+@app.get("/initiatives/pending")
+async def get_pending_initiatives():
+    """Return pending initiative messages for the notification system to pick up."""
+    return {"initiatives": _pending_initiatives}
+
+
+@app.post("/initiatives/dismiss/{initiative_id}")
+async def dismiss_initiative(initiative_id: str):
+    """Dismiss (remove) a pending initiative notification."""
+    global _pending_initiatives
+    original_len = len(_pending_initiatives)
+    _pending_initiatives = [i for i in _pending_initiatives if i["id"] != initiative_id]
+    if len(_pending_initiatives) == original_len:
+        raise HTTPException(status_code=404, detail="Initiative not found")
+    logger.info(f"Initiative {initiative_id} dismissed")
+    return {"ok": True, "dismissed": initiative_id}
+
+
+@app.get("/initiatives/settings")
+async def get_initiative_settings():
+    """Return current initiative settings."""
+    return {"settings": _initiative_settings, "available": _initiative_available}
+
+
+class InitiativeSettingsUpdate(BaseModel):
+    enabled: Optional[bool] = None
+    check_interval_seconds: Optional[int] = None
+    quiet_hours_start: Optional[int] = None
+    quiet_hours_end: Optional[int] = None
+    disabled_characters: Optional[List[str]] = None
+
+
+@app.post("/initiatives/settings")
+async def update_initiative_settings(req: InitiativeSettingsUpdate):
+    """Update initiative settings (quiet hours, disabled characters, etc.)."""
+    if req.enabled is not None:
+        _initiative_settings["enabled"] = req.enabled
+    if req.check_interval_seconds is not None:
+        _initiative_settings["check_interval_seconds"] = max(60, req.check_interval_seconds)
+    if req.quiet_hours_start is not None:
+        _initiative_settings["quiet_hours_start"] = req.quiet_hours_start
+    if req.quiet_hours_end is not None:
+        _initiative_settings["quiet_hours_end"] = req.quiet_hours_end
+    if req.disabled_characters is not None:
+        _initiative_settings["disabled_characters"] = req.disabled_characters
+    logger.info(f"Initiative settings updated: {_initiative_settings}")
+    return {"ok": True, "settings": _initiative_settings}
+
+
+@app.post("/initiatives/check")
+async def check_initiatives():
+    """Manually trigger initiative evaluation for all characters (testing/debugging)."""
+    if not initiative_engine:
+        raise HTTPException(
+            status_code=501,
+            detail="Initiative engine not available. Install garden_graph.initiative module.",
+        )
+
+    results = []
+    now = datetime.now(timezone.utc)
+    disabled = set(_initiative_settings.get("disabled_characters", []))
+
+    for char_id in character_models:
+        if char_id in disabled:
+            continue
+        try:
+            result = initiative_engine.evaluate(char_id, now)
+            if result:
+                from garden_graph.config import get_llm
+                llm = get_llm(os.getenv("HEARTBEAT_MODEL", "gpt-4o-mini"), temperature=0.9)
+                message = initiative_engine.generate_message(result, llm)
+                if message:
+                    initiative_data = {
+                        "id": str(uuid.uuid4()),
+                        "char_id": char_id,
+                        "trigger": result.trigger,
+                        "message": message,
+                        "created_at": result.created_at,
+                    }
+                    _pending_initiatives.append(initiative_data)
+                    results.append(initiative_data)
+        except Exception as e:
+            logger.warning(f"Initiative check failed for {char_id}: {e}")
+            results.append({"char_id": char_id, "error": str(e)})
+
+    return {"checked": len(character_models), "initiatives": results}
+
 
 # --- Run with `python server.py` for convenience ------------------------------
 

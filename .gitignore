@@ -43,6 +43,7 @@ backend/garden_graph/data/clusters_*.json
 backend/garden_graph/data/char_relationships.json
 backend/garden_graph/data/identity_*.json
 backend/garden_graph/data/reflections_*.json
+backend/garden_graph/data/initiative_settings.json
 
 # Taskmaster runtime state
 .taskmaster/state.json
