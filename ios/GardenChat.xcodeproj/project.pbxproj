@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 54;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -20,6 +20,7 @@
 		9099893E0A681D9FE5026553 /* CharactersListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61329F571D7FE55C213D4CAC /* CharactersListView.swift */; };
 		9F55AE2BCA288F3C8485AD72 /* ChatModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24776D0B68B8F5BD9FA8251B /* ChatModels.swift */; };
 		A35FFEC366D4E596707A6499 /* ChatsListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F015EADD3E0037F3263DF5B7 /* ChatsListView.swift */; };
+		C396DCA254C73EA26763383F /* CharacterDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFB5C914B475BD6BC34DD9CF /* CharacterDetailView.swift */; };
 		D4A8EC954FEC744FBED48519 /* Character.swift in Sources */ = {isa = PBXBuildFile; fileRef = B03C70369F2C4034110C5AFC /* Character.swift */; };
 		D7CBF4709828C18E8F39CCC5 /* NewChatView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE2C2CCE83E9D8A69B9687C4 /* NewChatView.swift */; };
 		DB5D72898A49625BA87172A9 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89ACFBE72AFD9C14031FD485 /* SettingsView.swift */; };
@@ -72,6 +73,7 @@
 		9BD69B6D951B0F0E243375F0 /* ChatBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatBubble.swift; sourceTree = "<group>"; };
 		A127B843E2E00962DC1066CB /* GardenChat.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = GardenChat.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AFAC3F9B3A5538788BD2AF3A /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
+		AFB5C914B475BD6BC34DD9CF /* CharacterDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CharacterDetailView.swift; sourceTree = "<group>"; };
 		B03C70369F2C4034110C5AFC /* Character.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Character.swift; sourceTree = "<group>"; };
 		C6F2C0ED666DC4EB2AD2EB8C /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		E2F8A9587A74C6CA27BAA65D /* Chat+Exyte.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Chat+Exyte.swift"; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 		DBAD923D0C0940BDE46D2E21 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				AFB5C914B475BD6BC34DD9CF /* CharacterDetailView.swift */,
 				91BB4C85468D8F89B17AC953 /* CharactersCatalogView.swift */,
 				61329F571D7FE55C213D4CAC /* CharactersListView.swift */,
 				ECAC91375B7980C6DC327899 /* CharactersStore.swift */,
@@ -206,8 +209,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = A252408967E7D2636E42A91F /* Build configuration list for PBXProject "GardenChat" */;
 			compatibilityVersion = "Xcode 14.0";
@@ -222,7 +223,7 @@
 			packageReferences = (
 				C7E0BB37EC9A06FE3CC344B1 /* XCRemoteSwiftPackageReference "Chat" */,
 			);
-			preferredProjectObjectVersion = 54;
+			preferredProjectObjectVersion = 77;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
@@ -260,6 +261,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C396DCA254C73EA26763383F /* CharacterDetailView.swift in Sources */,
 				FF7F0A455788D9D813E3E6D9 /* CharactersCatalogView.swift in Sources */,
 				9099893E0A681D9FE5026553 /* CharactersListView.swift in Sources */,
 				145B282795A25BE24936492B /* CharactersStore.swift in Sources */,

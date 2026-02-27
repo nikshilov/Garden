@@ -6,7 +6,8 @@ struct CharactersListView: View {
     @EnvironmentObject var chatsStore: ChatsStore
     @State private var showingCatalog = false
     @State private var characterViewModels: [String: ChatViewModel] = [:]
-    
+    @State private var selectedCharacter: Character?
+
     var body: some View {
         NavigationStack {
             List(store.characters) { character in
@@ -33,8 +34,26 @@ struct CharactersListView: View {
                             .frame(width: 32, height: 32)
                             .foregroundColor(.accentColor)
                             .padding(.trailing, 4)
-                        Text(character.displayName)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(character.displayName)
+                            if let location = character.location {
+                                Text(formatLocation(location))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
                         Spacer()
+
+                        Button {
+                            selectedCharacter = character
+                        } label: {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
                         if character.unreadCount > 0 {
                             Text("\(character.unreadCount)")
                                 .font(.footnote).bold()
@@ -59,7 +78,35 @@ struct CharactersListView: View {
                 CharactersCatalogView()
                     .environmentObject(store)
             }
+            .sheet(item: $selectedCharacter) { character in
+                NavigationStack {
+                    CharacterDetailView(character: character) {
+                        selectedCharacter = nil
+                        // Navigate to chat handled by NavigationLink above
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") { selectedCharacter = nil }
+                        }
+                    }
+                }
+            }
+            .task { await loadPresences() }
         }
+    }
+
+    private func loadPresences() async {
+        let api = APIClient()
+        do {
+            let resp = try await api.fetchGardenState()
+            store.updatePresences(resp.presences)
+        } catch {
+            // Silently fail — presences are optional enrichment
+        }
+    }
+
+    private func formatLocation(_ location: String) -> String {
+        location.replacingOccurrences(of: "_", with: " ").capitalized
     }
 }
 
