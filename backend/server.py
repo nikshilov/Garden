@@ -46,6 +46,29 @@ except ImportError:
         "garden_graph.initiative not found — initiative features disabled"
     )
 
+# Garden world (Phase 6 — Soil: Sense of Place) — optional, graceful degradation
+try:
+    from garden_graph.garden_world import GardenWorld
+    _garden_world_available = True
+except ImportError:
+    GardenWorld = None  # type: ignore[misc, assignment]
+    _garden_world_available = False
+    logging.getLogger("garden.server").warning(
+        "garden_graph.garden_world not found — garden world features disabled"
+    )
+
+# Health monitor (Phase 7 — Autonomy: Self-Healing Garden) — optional, graceful degradation
+try:
+    from garden_graph.health import HealthMonitor, SelfRepair, overall_status
+    _health_available = True
+except ImportError:
+    HealthMonitor = None
+    SelfRepair = None
+    _health_available = False
+    logging.getLogger("garden.server").warning(
+        "garden_graph.health not found — health monitoring disabled"
+    )
+
 logging.basicConfig(
     level=os.getenv("LOG_LEVEL", "INFO").upper(),
     format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
@@ -91,6 +114,20 @@ initiative_engine = None
 if _initiative_available and InitiativeEngine is not None:
     initiative_engine = InitiativeEngine(memory_manager=memory_manager)
     logger.info("Initiative engine initialized")
+
+# --- Garden world (sense of place) ---
+garden_world = None
+if _garden_world_available and GardenWorld is not None:
+    garden_world = GardenWorld()
+    logger.info("Garden world initialized")
+
+# --- Health monitor (self-healing garden) ---
+health_monitor = None
+self_repair = None
+if _health_available and HealthMonitor is not None:
+    health_monitor = HealthMonitor()
+    self_repair = SelfRepair()
+    logger.info("Health monitor initialized")
 
 # Store pending initiatives for the notification system to pick up
 _pending_initiatives: List[Dict] = []
@@ -417,6 +454,42 @@ async def tg_adam_webhook(request: Request) -> Dict[str, bool]:
 
     return {"ok": True}
 
+# --- Garden World Endpoints (Phase 6 — Soil: Sense of Place) ------------------
+
+@app.get("/garden/state")
+async def get_garden_state():
+    """Return the current garden world state (season, weather, ambiance, presences)."""
+    if not garden_world:
+        raise HTTPException(status_code=501, detail="Garden world not available")
+
+    state = garden_world.get_state()
+    presences = garden_world.get_all_presences()
+    return {
+        "state": state.to_dict(),
+        "presences": [p.to_dict() for p in presences],
+    }
+
+
+@app.get("/garden/artifacts")
+async def get_garden_artifacts(creator_id: Optional[str] = None, limit: int = 10):
+    """Return recent garden artifacts (poems, theories, sketches, etc.)."""
+    if not garden_world:
+        raise HTTPException(status_code=501, detail="Garden world not available")
+
+    artifacts = garden_world.get_artifacts(creator_id=creator_id, limit=limit)
+    return {"artifacts": [a.to_dict() for a in artifacts]}
+
+
+@app.post("/garden/update")
+async def update_garden_state():
+    """Manually trigger a garden world state update (for testing/debugging)."""
+    if not garden_world:
+        raise HTTPException(status_code=501, detail="Garden world not available")
+
+    state = garden_world.update()
+    return {"ok": True, "state": state.to_dict()}
+
+
 # --- Initiative Endpoints (Phase 5 — Voice: Reaching Out) ---------------------
 
 @app.get("/initiatives/pending")
@@ -505,6 +578,79 @@ async def check_initiatives():
             results.append({"char_id": char_id, "error": str(e)})
 
     return {"checked": len(character_models), "initiatives": results}
+
+
+# --- Health Endpoints (Phase 7 — Autonomy: Self-Healing Garden) ---------------
+
+@app.get("/health/diagnostics")
+async def get_diagnostics(char_id: Optional[str] = None):
+    """Run health diagnostics for one or all characters."""
+    if not health_monitor:
+        raise HTTPException(status_code=501, detail="Health monitor not available")
+
+    if char_id:
+        checks = health_monitor.check_all(char_id)
+        status = overall_status(checks)
+        return {
+            "character": char_id,
+            "status": status.value,
+            "checks": [
+                {
+                    "category": c.category,
+                    "status": c.status.value,
+                    "message": c.message,
+                    "auto_fixable": c.auto_fixable,
+                }
+                for c in checks
+            ],
+        }
+
+    # All characters
+    all_results = health_monitor.check_all_characters(list(character_models.keys()))
+    summary = {}
+    for cid, checks in all_results.items():
+        status = overall_status(checks)
+        summary[cid] = {
+            "status": status.value,
+            "checks": [
+                {
+                    "category": c.category,
+                    "status": c.status.value,
+                    "message": c.message,
+                    "auto_fixable": c.auto_fixable,
+                }
+                for c in checks
+            ],
+        }
+    return {"diagnostics": summary}
+
+
+@app.post("/health/repair/{char_id}")
+async def repair_character(char_id: str):
+    """Run auto-repair for a character's fixable issues."""
+    if not health_monitor or not self_repair:
+        raise HTTPException(status_code=501, detail="Health monitor not available")
+
+    checks = health_monitor.check_all(char_id)
+    repairs = self_repair.repair_all(char_id, checks)
+
+    # Re-run diagnostics to show new state
+    new_checks = health_monitor.check_all(char_id)
+    new_status = overall_status(new_checks)
+
+    return {
+        "character": char_id,
+        "repairs_applied": repairs,
+        "new_status": new_status.value,
+        "checks": [
+            {
+                "category": c.category,
+                "status": c.status.value,
+                "message": c.message,
+            }
+            for c in new_checks
+        ],
+    }
 
 
 # --- Run with `python server.py` for convenience ------------------------------

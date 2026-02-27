@@ -122,6 +122,8 @@ class TestInitiativeEngine(unittest.TestCase):
 
     def test_record_dismissed(self):
         engine = self._get_engine()
+        # Reset dismissed count to ensure clean state
+        engine._settings["dismissed_count"] = {}
         engine.record_dismissed("eve")
         engine.record_dismissed("eve")
         self.assertEqual(engine._settings["dismissed_count"].get("eve", 0), 2)

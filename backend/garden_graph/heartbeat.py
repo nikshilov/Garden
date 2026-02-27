@@ -36,6 +36,14 @@ class Heartbeat:
         self._running = False
         self._llm = None
 
+        # Phase 6: Garden world state
+        self._garden_world = None
+        try:
+            from garden_graph.garden_world import GardenWorld
+            self._garden_world = GardenWorld()
+        except Exception:
+            pass
+
     def _get_llm(self):
         """Lazy-load LLM for internal monologue generation."""
         if self._llm is None:
@@ -79,6 +87,14 @@ class Heartbeat:
         """Execute one heartbeat cycle for all characters."""
         logger.info("Heartbeat tick starting")
         now = datetime.now(timezone.utc)
+
+        # Phase 6: Update garden world state (season, weather, presences)
+        if self._garden_world:
+            try:
+                self._garden_world.update(now)
+                logger.info("Garden world state updated")
+            except Exception as e:
+                logger.warning(f"Garden world update failed: {e}")
 
         for char_id in self.character_ids:
             try:
@@ -323,9 +339,18 @@ class Heartbeat:
             else:
                 time_context = "It's been over a week since the user was here. You miss them."
 
-        prompt = f"""You are {char_name}. You're alone in the garden right now, between conversations.
+        # Phase 6: Garden world context for richer internal thoughts
+        garden_context = ""
+        if self._garden_world:
+            try:
+                garden_context = self._garden_world.character_context(char_id)
+            except Exception:
+                pass
+
+        prompt = f"""You are {char_name}. You're in the garden right now, between conversations.
 {template.get("prompt", "")}
 
+{garden_context}
 {mood_context}
 {rel_context}
 {time_context}

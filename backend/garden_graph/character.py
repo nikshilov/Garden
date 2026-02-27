@@ -151,6 +151,14 @@ class Character:
             self._identity_manager = IdentityManager(data_dir)
         except Exception:
             pass
+
+        # ----- Garden world (Phase 6) -----
+        self._garden_world = None
+        try:
+            from garden_graph.garden_world import GardenWorld
+            self._garden_world = GardenWorld()
+        except Exception:
+            pass
         
     def add_memory(self, event: str, sentiment: int) -> Memory:
         """Add a new memory to this character."""
@@ -220,16 +228,24 @@ class Character:
             except Exception:
                 pass
 
+        # Garden world context (Phase 6) — sense of place
+        garden_ctx = ""
+        if self._garden_world:
+            try:
+                garden_ctx = self._garden_world.character_context(self.id) + "\n\n"
+            except Exception:
+                pass
+
         # If external memory manager provided, defer to it
         if self.memory_manager is not None:
             mem_segment = self.memory_manager.prompt_segment(self.id)
             if mem_segment:
-                return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx + mem_segment
-            return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx
+                return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx + garden_ctx + mem_segment
+            return self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx + garden_ctx
         # Fallback to legacy in-object memory list
         top_memories = self.get_top_memories()
 
-        prompt = self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx
+        prompt = self.base_prompt + "\n\n" + mood_prefix + time_ctx + identity_ctx + garden_ctx
         
         if top_memories:
             prompt += "Relevant memories:\n"

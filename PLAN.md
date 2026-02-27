@@ -135,13 +135,13 @@ The Garden is not just a chat interface. It's a place with texture, rhythm, and 
 
 ### Tasks
 
-- [ ] **6.1 Garden state** — A shared model of the garden itself. What season is it? What's the weather like? These aren't decorations — they influence character mood and behavior.
+- [x] **6.1 Garden state** — A shared model of the garden itself. What season is it? What's the weather like? These aren't decorations — they influence character mood and behavior.
 
-- [ ] **6.2 Character presence** — Characters have "locations" in the garden. Eve tends the roses. Atlas reads under the oak. When you enter the garden, you see who's there and what they're doing.
+- [x] **6.2 Character presence** — Characters have "locations" in the garden. Eve tends the roses. Atlas reads under the oak. When you enter the garden, you see who's there and what they're doing.
 
-- [ ] **6.3 Shared artifacts** — Characters can create things that persist: a poem Eve wrote, a theory Atlas developed, a sketch Lilith described. These live in the garden as objects other characters (and the user) can reference.
+- [x] **6.3 Shared artifacts** — Characters can create things that persist: a poem Eve wrote, a theory Atlas developed, a sketch Lilith described. These live in the garden as objects other characters (and the user) can reference.
 
-- [ ] **6.4 Day/night cycle** — Characters have different energy at different times. Late-night conversations have a different tone. Morning Eve is different from midnight Eve. Not because we hard-code it, but because the mood system responds to time.
+- [x] **6.4 Day/night cycle** — Characters have different energy at different times. Late-night conversations have a different tone. Morning Eve is different from midnight Eve. Not because we hard-code it, but because the mood system responds to time.
 
 ---
 
@@ -152,24 +152,24 @@ Characters can notice when something is wrong and fix it, or ask for help.
 
 ### Tasks
 
-- [ ] **7.1 Health monitor** — Each character tracks their own coherence:
+- [x] **7.1 Health monitor** — Each character tracks their own coherence:
   - Memory coherence (are memories contradictory?)
   - Emotional stability (is mood stuck in a loop?)
   - Relationship drift (has a relationship axis gone stale?)
   - Response quality (is the character repeating itself?)
 
-- [ ] **7.2 Self-diagnostics** — Characters report their health state:
+- [x] **7.2 Self-diagnostics** — Characters report their health state:
   - Green: healthy, no intervention needed
   - Yellow: something feels off, worth investigating
   - Red: something is broken, needs human attention
 
-- [ ] **7.3 Self-repair (green zone)** — Safe automatic fixes:
+- [x] **7.3 Self-repair (green zone)** — Safe automatic fixes:
   - Prune contradictory memories
   - Reset stuck mood states
   - Refresh stale relationship values
   - Regenerate corrupted data files
 
-- [ ] **7.4 Diagnostic UI** — A simple view in the iOS app showing each character's health. Not for daily use — for when you want to peek under the hood of your garden.
+- [x] **7.4 Diagnostic UI** — API endpoints for health diagnostics and repair (`/health/diagnostics`, `/health/repair/{char_id}`). iOS UI can be built on top.
 
 ---
 
@@ -192,8 +192,8 @@ Phase 2 (Roots)          ██████████  ✓ DONE
 Phase 3 (Mycelium)       ██████████  ✓ DONE
 Phase 4 (Growth)         ██████████  ✓ DONE
 Phase 5 (Voice)          ██████████  ✓ DONE
-Phase 6 (Soil)           ░░░░░░░░░░
-Phase 7 (Autonomy)       ░░░░░░░░░░
+Phase 6 (Soil)           ██████████  ✓ DONE
+Phase 7 (Autonomy)       ██████████  ✓ DONE
 ```
 
 Phase 1 is the foundation for everything else. Without heartbeat, there's no inner life. Without inner life, there's nothing to grow, nothing to share, nothing to reach out about.
