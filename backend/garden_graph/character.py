@@ -440,7 +440,10 @@ class Character:
                     data = json.load(f)
                     timestamp = data.get(self.id)
                     if timestamp:
-                        return datetime.fromisoformat(timestamp)
+                        dt = datetime.fromisoformat(timestamp)
+                        if dt.tzinfo is None:
+                            dt = dt.replace(tzinfo=timezone.utc)
+                        return dt
         except Exception as e:
             logger.warning(f"[{self.id}] Error loading last seen time: {e}")
         return None
