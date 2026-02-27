@@ -19,3 +19,94 @@ public struct ChatMessage: Identifiable, Codable, Equatable {
         self.responseTime = responseTime
     }
 }
+
+// MARK: - Garden State
+
+public struct GardenStateResponse: Codable {
+    public let state: GardenWorldState
+    public let presences: [CharacterPresence]
+}
+
+public struct GardenWorldState: Codable {
+    public let season: String
+    public let time_of_day: String
+    public let weather: String
+    public let ambiance: String
+    public let last_updated: String
+}
+
+public struct CharacterPresence: Codable, Identifiable {
+    public let char_id: String
+    public let location: String
+    public let activity: String
+    public let energy: Double
+
+    public var id: String { char_id }
+}
+
+// MARK: - Initiatives
+
+public struct InitiativesResponse: Codable {
+    public let initiatives: [Initiative]
+}
+
+public struct Initiative: Codable, Identifiable {
+    public let id: String
+    public let char_id: String
+    public let trigger: String
+    public let message: String
+    public let created_at: String
+}
+
+// MARK: - Artifacts
+
+public struct ArtifactsResponse: Codable {
+    public let artifacts: [Artifact]
+}
+
+public struct Artifact: Codable, Identifiable {
+    public let id: String
+    public let creator_id: String
+    public let artifact_type: String
+    public let title: String
+    public let content: String
+    public let created_at: String
+}
+
+// MARK: - Health Diagnostics
+
+public struct DiagnosticsResponse: Codable {
+    public let character: String?
+    public let status: String?
+    public let checks: [DiagnosticCheck]?
+    public let diagnostics: [String: CharacterDiagnostics]?
+}
+
+public struct CharacterDiagnostics: Codable {
+    public let status: String
+    public let checks: [DiagnosticCheck]
+}
+
+public struct DiagnosticCheck: Codable, Identifiable {
+    public let category: String
+    public let status: String
+    public let message: String
+    public let auto_fixable: Bool?
+
+    public var id: String { "\(category)-\(message)" }
+}
+
+// MARK: - Initiative Settings
+
+public struct InitiativeSettingsResponse: Codable {
+    public let settings: InitiativeSettings
+    public let available: Bool
+}
+
+public struct InitiativeSettings: Codable {
+    public let enabled: Bool
+    public let check_interval_seconds: Int
+    public let quiet_hours_start: Int?
+    public let quiet_hours_end: Int?
+    public let disabled_characters: [String]
+}
