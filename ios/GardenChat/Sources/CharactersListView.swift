@@ -12,9 +12,10 @@ struct CharactersListView: View {
             List(store.characters) { character in
                 NavigationLink {
                     let chatId = "character_\(character.id)"
-                    let viewModel = characterViewModels[character.id] ?? ChatViewModel(store: chatsStore, chatId: chatId)
+                    let viewModel = characterViewModels[character.id] ?? ChatViewModel(store: chatsStore, chatId: chatId, characterId: character.id, characterName: character.displayName)
                     ContentView()
                         .environmentObject(viewModel)
+                        .environmentObject(store)
                         .onAppear {
                             if characterViewModels[character.id] == nil {
                                 characterViewModels[character.id] = viewModel
@@ -65,4 +66,5 @@ struct CharactersListView: View {
 #Preview {
     CharactersListView()
         .environmentObject(CharactersStore())
+        .environmentObject(ChatsStore())
 }

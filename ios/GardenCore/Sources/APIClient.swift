@@ -16,6 +16,9 @@ public final class APIClient {
     public struct ChatResponse: Codable {
         public let text: String
         public let cost_total_usd: Double
+        public let budget_limit: Double?
+        public let budget_exceeded: Bool?
+        public let budget_remaining: Double?
     }
 
     /// Sends a chat message to the backend and returns the assistant reply and cost.

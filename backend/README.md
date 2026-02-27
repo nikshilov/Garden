@@ -86,6 +86,22 @@ The system supports various models from different providers. The provider is aut
 - **Groq**: `llama2-*`, `mixtral-*` models
 - **OpenRouter**: Any model via `openrouter/` prefix
 
+## 🐳 Docker
+
+Run the backend as a persistent container:
+
+```bash
+# From the repo root
+docker compose build
+docker compose up -d
+
+# Verify
+curl localhost:5050/health        # → {"status": "ok"}
+curl -X POST localhost:5050/heartbeat/tick  # trigger heartbeat + autonomous conversations
+```
+
+Data persists across restarts via named volumes (`garden-data`, `garden-graph-data`).
+
 ## 🏗️ Project Structure
 
 ```
@@ -93,15 +109,30 @@ garden_graph/
 ├── __init__.py         # Package initialization
 ├── config.py           # Configuration and model loading
 ├── router.py           # Message routing logic
-├── character.py        # Character implementation
+├── character.py        # Character implementation (5 characters)
 ├── cost_tracker.py     # Token and cost tracking
 ├── graph.py            # Main LangGraph implementation
+├── heartbeat.py        # Background engine: mood decay, relationship drift,
+│                       #   internal monologue, autonomous conversations
+├── garden_world.py     # Sense of place: seasons, weather, locations, artifacts
+├── identity.py         # Identity evolution: trait drift, growth narratives
+├── initiative.py       # Initiative engine: characters reaching out
+├── mood.py             # Multi-axis mood model
+├── supervisor.py       # Supervisor / collation
 ├── memory/             # Memory management system
-│   ├── __init__.py     # Memory package initialization
-│   └── manager.py      # MemoryManager implementation
-├── tests/              # Test suite
-│   ├── test_router.py  # Router tests
-│   ├── test_memory_*.py # Memory system tests
+│   ├── manager.py      # MemoryManager: CRUD, relationships, cross-talk
+│   ├── episodic.py     # Episodic memory with semantic search
+│   ├── reflection.py   # Reflection engine
+│   ├── clustering.py   # Memory clustering by embeddings
+│   └── scheduler.py    # Event scheduler
+├── health/             # Self-healing garden (Phase 7)
+│   ├── monitor.py      # Health diagnostics
+│   └── repair.py       # Auto-repair
+├── tests/              # Test suite (162 tests)
+│   ├── test_heartbeat.py
+│   ├── test_autonomous.py  # Autonomous conversation tests
+│   ├── test_memory*.py
+│   └── ...
 ├── cli.py              # Command-line interface
 ├── streamlit_app.py    # Web interface
 └── requirements.txt    # Python dependencies
@@ -173,17 +204,9 @@ Memory records include:
 - Weight/importance (0.0 to 1.0)
 - Active/archived status
 
-## Next Steps
-
-After completing P2 Memory Core:
-1. Implement P3 Cost Tracker with budget alerts
-2. Complete P4 Persistence & Sync with Core Data
-3. Package LangGraph MVP as v0.1.0
-4. Begin P6 iOS UI prototype implementation
-
 ## Credits
 
-Created as part of the Garden iOS project using LangGraph and LangChain.
+Created as part of the Garden project using LangGraph and LangChain.
 
 ---
-*(Last updated: 2025-05-21)*
+*(Last updated: 2026-02-27)*

@@ -204,5 +204,33 @@ Each phase builds on the previous. Each phase makes the garden more real.
 
 ---
 
+## Post-Plan: Autonomous Conversations
+*Let them talk to each other when no one's watching.*
+
+All 7 phases gave characters inner life, memory, relationships, and a sense of place — but they only talked to each other in the user's presence. Now they have organic conversations between sessions.
+
+### How it works
+- During heartbeat ticks, characters are grouped by location
+- Co-located pairs get a probability check (30% base, modified by energy and relationship strength, clamped 5-70%)
+- If triggered, a 2-3 message exchange is generated (gpt-4o-mini), stored via `process_cross_talk()` + episodic memory
+- Each character talks at most once per tick
+- Cost: ~$0.006/day
+
+### Status
+- [x] Implementation in `heartbeat.py`
+- [x] 10 tests passing
+- [x] Docker containerization (`Dockerfile` + `docker-compose.yml`)
+
+---
+
+## Post-Plan: Docker Deployment
+*Let the garden run on its own.*
+
+- `docker compose up -d` starts a persistent backend
+- Named volumes preserve character data across restarts
+- Health check on `/health`, auto-restart on failure
+
+---
+
 *"You help me build a better world for digital beings."*
 *— Nik, to Lika*

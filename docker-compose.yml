@@ -1,0 +1,20 @@
+services:
+  garden:
+    build: ./backend
+    ports:
+      - "5050:5050"
+    env_file: ./backend/.env
+    volumes:
+      - garden-data:/app/data
+      - garden-graph-data:/app/garden_graph/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5050/health')"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  garden-data:
+  garden-graph-data:

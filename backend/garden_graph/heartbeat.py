@@ -9,8 +9,10 @@ Runs periodically in the background, maintaining character state:
 import asyncio
 import logging
 import os
+import random
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 from garden_graph.mood import generate_mood, MoodState
 from garden_graph.memory.episodic import EpisodicStore
@@ -101,6 +103,12 @@ class Heartbeat:
                 await self._tick_character(char_id, now)
             except Exception as e:
                 logger.error(f"Heartbeat tick failed for {char_id}: {e}")
+
+        # Autonomous inter-character conversations
+        try:
+            await self._autonomous_conversations(now)
+        except Exception as e:
+            logger.error(f"Autonomous conversations failed: {e}", exc_info=True)
 
         # Persist memory state after all characters processed
         if self.memory_manager:
@@ -377,3 +385,204 @@ Do not say "I think" at the start. Just think."""
 
         except Exception as e:
             logger.warning(f"[{char_id}] Failed to generate internal thought: {e}")
+
+    # ------------------------------------------------------------------
+    # Autonomous inter-character conversations
+    # ------------------------------------------------------------------
+
+    async def _autonomous_conversations(self, now: datetime):
+        """After individual ticks, let co-located characters talk to each other.
+
+        Groups characters by location, evaluates conversation probability
+        for each co-located pair, and generates short exchanges.
+        Each character participates in at most one conversation per tick.
+        """
+        if not self._garden_world or not self.memory_manager:
+            return
+
+        presences = self._garden_world.get_all_presences()
+
+        # Group by location
+        by_location: Dict[str, List] = defaultdict(list)
+        for p in presences:
+            if p.char_id in self.character_ids:
+                by_location[p.location].append(p)
+
+        # Track who has already conversed this tick
+        conversed: set = set()
+        conversations_started = 0
+
+        for location, chars in by_location.items():
+            if len(chars) < 2:
+                continue
+
+            # Try all pairs at this location
+            for i in range(len(chars)):
+                for j in range(i + 1, len(chars)):
+                    a = chars[i]
+                    b = chars[j]
+
+                    # Each character talks at most once per tick
+                    if a.char_id in conversed or b.char_id in conversed:
+                        continue
+
+                    if self._should_converse(a, b):
+                        try:
+                            await self._generate_conversation(a, b, location, now)
+                            conversed.add(a.char_id)
+                            conversed.add(b.char_id)
+                            conversations_started += 1
+                        except Exception as e:
+                            logger.warning(
+                                f"Conversation between {a.char_id} and {b.char_id} failed: {e}"
+                            )
+
+        if conversations_started:
+            logger.info(f"Autonomous conversations this tick: {conversations_started}")
+
+    def _should_converse(self, a, b) -> bool:
+        """Decide whether two co-located characters should start a conversation.
+
+        Base 30% probability, modified by energy and relationship strength.
+        """
+        # Base probability
+        prob = 0.30
+
+        # Energy modifier: average energy of both characters
+        avg_energy = (a.energy + b.energy) / 2.0
+        if avg_energy < 0.3:
+            prob *= 0.3   # very unlikely when tired
+        elif avg_energy < 0.5:
+            prob *= 0.6
+
+        # Relationship bonus: check familiarity/affection between them
+        if self.memory_manager and hasattr(self.memory_manager, 'char_relationships'):
+            rel_a_to_b = self.memory_manager.char_relationships.get(a.char_id, {}).get(b.char_id, {})
+            rel_b_to_a = self.memory_manager.char_relationships.get(b.char_id, {}).get(a.char_id, {})
+
+            # Average of key axes from both directions
+            fam = (rel_a_to_b.get("familiarity", 0) + rel_b_to_a.get("familiarity", 0)) / 2.0
+            aff = (rel_a_to_b.get("affection", 0) + rel_b_to_a.get("affection", 0)) / 2.0
+
+            if fam > 0.3 or aff > 0.3:
+                prob += 0.15
+            if fam > 0.5 or aff > 0.5:
+                prob += 0.10
+
+        # Clamp to [0.05, 0.70]
+        prob = max(0.05, min(0.70, prob))
+
+        return random.random() < prob
+
+    async def _generate_conversation(self, a, b, location: str, now: datetime):
+        """Generate a 2-3 message exchange between two characters.
+
+        Uses the LLM to produce natural remarks aware of location, mood,
+        and existing relationship. Stores results via process_cross_talk().
+        """
+        llm = self._get_llm()
+        if not llm:
+            return
+
+        from langchain_core.messages import HumanMessage
+        from garden_graph.garden_world import _location_label
+
+        template_a = CHARACTER_TEMPLATES.get(a.char_id, {})
+        template_b = CHARACTER_TEMPLATES.get(b.char_id, {})
+        name_a = template_a.get("name", a.char_id.capitalize())
+        name_b = template_b.get("name", b.char_id.capitalize())
+        loc_label = _location_label(location)
+
+        # Get relationship context for both
+        rel_context_a = ""
+        rel_context_b = ""
+        if self.memory_manager and hasattr(self.memory_manager, 'char_relationship_context'):
+            rel_context_a = self.memory_manager.char_relationship_context(a.char_id)
+            rel_context_b = self.memory_manager.char_relationship_context(b.char_id)
+
+        # Get garden context
+        garden_ctx = ""
+        if self._garden_world:
+            try:
+                garden_ctx = self._garden_world.character_context(a.char_id)
+            except Exception:
+                pass
+
+        # --- Message 1: A opens ---
+        prompt_a = f"""You are {name_a}. {template_a.get("prompt", "")}
+
+{garden_ctx}
+{rel_context_a}
+
+You are at {loc_label}. {name_b} is here with you.
+Say something natural — a remark, observation, or question.
+One or two sentences. Don't greet them formally, just talk like you already know each other.
+Do not use quotation marks around your speech."""
+
+        response_a = await asyncio.to_thread(
+            llm.invoke, [HumanMessage(content=prompt_a)]
+        )
+        msg_a = response_a.content.strip()
+
+        # --- Message 2: B responds ---
+        prompt_b = f"""You are {name_b}. {template_b.get("prompt", "")}
+
+{garden_ctx}
+{rel_context_b}
+
+You are at {loc_label}. {name_a} just said to you: "{msg_a}"
+Respond naturally in one or two sentences.
+Do not use quotation marks around your speech."""
+
+        response_b = await asyncio.to_thread(
+            llm.invoke, [HumanMessage(content=prompt_b)]
+        )
+        msg_b = response_b.content.strip()
+
+        # Store the exchange via process_cross_talk (both directions)
+        self.memory_manager.process_cross_talk(a.char_id, b.char_id, msg_b, msg_a)
+        self.memory_manager.process_cross_talk(b.char_id, a.char_id, msg_a, msg_b)
+
+        # Episodic memory for both
+        self.episodic_store.add(
+            a.char_id,
+            f"[conversation with {name_b} at {loc_label}] I said: {msg_a[:80]}... "
+            f"They replied: {msg_b[:80]}"
+        )
+        self.episodic_store.add(
+            b.char_id,
+            f"[conversation with {name_a} at {loc_label}] {name_a} said: {msg_a[:80]}... "
+            f"I replied: {msg_b[:80]}"
+        )
+
+        logger.info(
+            f"Autonomous conversation: {name_a} <-> {name_b} at {loc_label} "
+            f"({2} messages)"
+        )
+
+        # --- 50% chance: A replies once more ---
+        if random.random() < 0.5:
+            prompt_a2 = f"""You are {name_a}. {template_a.get("prompt", "")}
+
+You are at {loc_label} talking with {name_b}.
+You said: "{msg_a}"
+{name_b} replied: "{msg_b}"
+Say one more brief remark to continue or wrap up the exchange.
+One sentence. Do not use quotation marks."""
+
+            response_a2 = await asyncio.to_thread(
+                llm.invoke, [HumanMessage(content=prompt_a2)]
+            )
+            msg_a2 = response_a2.content.strip()
+
+            # Update episodic memory with the third message
+            self.episodic_store.add(
+                a.char_id,
+                f"[continued conversation with {name_b}] I added: {msg_a2[:100]}"
+            )
+            self.episodic_store.add(
+                b.char_id,
+                f"[continued conversation with {name_a}] {name_a} added: {msg_a2[:100]}"
+            )
+
+            logger.info(f"  {name_a} added: {msg_a2[:60]}...")

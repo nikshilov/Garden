@@ -17,7 +17,8 @@ struct ChatsListView: View {
                     let viewModel = chatViewModels[chat.id] ?? ChatViewModel(store: store, chatId: chat.id)
                     ContentView()
                         .environmentObject(viewModel)
-                        .onAppear { 
+                        .environmentObject(charactersStore)
+                        .onAppear {
                             store.markRead(chatId: chat.id)
                             if chatViewModels[chat.id] == nil {
                                 chatViewModels[chat.id] = viewModel

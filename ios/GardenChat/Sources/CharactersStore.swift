@@ -7,15 +7,16 @@ final class CharactersStore: ObservableObject {
     
     /// Full catalog of available characters (placeholder, will be fetched from backend later).
     private let catalog: [Character] = [
-        Character(id: "eve", displayName: "Eve", avatarSystemName: "person.fill"),
+        Character(id: "eve", displayName: "Eve", avatarSystemName: "heart.fill"),
+        Character(id: "atlas", displayName: "Atlas", avatarSystemName: "brain.head.profile"),
         Character(id: "adam", displayName: "Adam", avatarSystemName: "person.fill"),
-        Character(id: "lilith", displayName: "Lilith", avatarSystemName: "person.fill"),
-        Character(id: "sophia", displayName: "Sophia", avatarSystemName: "person.fill"),
+        Character(id: "lilith", displayName: "Lilith", avatarSystemName: "moon.stars.fill"),
+        Character(id: "sophia", displayName: "Sophia", avatarSystemName: "sparkles"),
     ]
     
     init() {
-        // For demo include first two.
-        self.characters = [catalog[0], catalog[1]]
+        // Default characters: Eve and Atlas (per PRD MVP)
+        self.characters = [catalog[0], catalog[1]]  // Eve, Atlas
     }
     
     /// Characters not yet added to the user's list.

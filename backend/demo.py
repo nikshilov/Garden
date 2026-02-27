@@ -163,7 +163,7 @@ def demo_chat(client: httpx.Client):
     header("Phase 1-5 — Talking to the Garden")
 
     messages = [
-        ("eve", "Hey Eve, what have you been thinking about lately?"),
+        ("eve", "Привет, Ева! Расскажи, о чём думала в последнее время?"),
         ("atlas", "Atlas, what's your take on consciousness?"),
     ]
 
