@@ -142,37 +142,33 @@ final class ChatViewModel: ObservableObject {
     func send(text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
+        inputText = ""
+
         let userMsg = ChatMessage(text: text, isUser: true)
         messages.append(userMsg)
-        messages = messages
-        objectWillChange.send()
-        print("🟢 Sent user message: \(text)")
+#if DEBUG
+        print("ChatViewModel: sent user message: \(text)")
+#endif
         chatsStore.updateLastMessage(chatId: chatId, text: text)
 
         let startTime = Date()
         Task { @MainActor in
             isTyping = true
-            // Add placeholder loader message
             let placeholderId = UUID()
             typingPlaceholderId = placeholderId
             let placeholder = ChatMessage(id: placeholderId, text: "…", isUser: false)
             messages.append(placeholder)
-            messages = messages
-            print("⏳ Awaiting server reply…")
             defer { isTyping = false }
             do {
                 let response = try await api.sendMessage(text: text, characterId: characterId)
                 let duration = Date().timeIntervalSince(startTime)
                 let botMessages = ChatViewModel.parseMultiSpeakerResponse(response.text, totalCost: response.cost_total_usd, totalDuration: duration)
-                print("🟣 Server replied with \(botMessages.count) messages.")
 
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
                     messages.remove(at: idx)
                 }
-                
+
                 messages.append(contentsOf: botMessages)
-                messages = messages
-                objectWillChange.send()
                 typingPlaceholderId = nil
                 totalCostUSD = response.cost_total_usd
                 budgetLimit = response.budget_limit ?? 0.0
@@ -185,10 +181,8 @@ final class ChatViewModel: ObservableObject {
                 let errMsg = ChatMessage(text: "Error: Could not connect to the server.", isUser: false)
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
                     messages[idx] = errMsg
-                     messages = messages
                 } else {
                     messages.append(errMsg)
-                 messages = messages
                 }
                 typingPlaceholderId = nil
             }

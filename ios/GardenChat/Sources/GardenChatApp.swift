@@ -18,8 +18,7 @@ struct GardenChatApp: App {
 
     var body: some Scene {
         WindowGroup {
-            NavigationView {
-                TabView(selection: $selectedTab) {
+            TabView(selection: $selectedTab) {
                 DashboardView(navigateToCharIdFromNotification: $notificationCharId)
                     .environmentObject(charactersStore)
                     .environmentObject(chatsStore)
@@ -41,12 +40,10 @@ struct GardenChatApp: App {
                     .environmentObject(charactersStore)
                     .tabItem { Label("Settings", systemImage: "gear") }
                     .tag(3)
-                }
-                .navigationBarHidden(true)
             }
             .fullScreenCover(isPresented: Binding(
                 get: { !hasCompletedOnboarding },
-                set: { if $0 { hasCompletedOnboarding = false } }
+                set: { if !$0 { hasCompletedOnboarding = true } }
             )) {
                 OnboardingView(hasCompletedOnboarding: $hasCompletedOnboarding)
             }
@@ -77,10 +74,16 @@ struct GardenChatApp: App {
                         }
                     }
                 }
+            } catch is CancellationError {
+                return
             } catch {
                 // Silently fail — backend may be offline
             }
-            try? await Task.sleep(for: .seconds(60))
+            do {
+                try await Task.sleep(for: .seconds(60))
+            } catch {
+                return // Cancelled during sleep
+            }
         }
     }
 }
@@ -99,15 +102,15 @@ extension NotificationManager: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        await MainActor.run {
-            if let charId = handleNotificationResponse(response) {
-                NotificationCenter.default.post(
-                    name: .initiativeNotificationTapped,
-                    object: nil,
-                    userInfo: ["char_id": charId]
-                )
-            }
-        }
+        let userInfo = response.notification.request.content.userInfo
+        guard let charId = userInfo["char_id"] as? String else { return }
+        let actionId = response.actionIdentifier
+        guard actionId == "OPEN_CHAT" || actionId == UNNotificationDefaultActionIdentifier else { return }
+        NotificationCenter.default.post(
+            name: .initiativeNotificationTapped,
+            object: nil,
+            userInfo: ["char_id": charId]
+        )
     }
 }
 

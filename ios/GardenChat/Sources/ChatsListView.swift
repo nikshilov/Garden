@@ -7,23 +7,17 @@ struct ChatsListView: View {
     @EnvironmentObject var charactersStore: CharactersStore
     @State private var showingNewChat = false
     @State private var chatViewModels: [String: ChatViewModel] = [:]
-    
+
     var body: some View {
         NavigationStack {
             let sorted = store.chats.sorted(by: { $0.lastUpdated > $1.lastUpdated })
             List {
                 ForEach(sorted) { chat in
                 NavigationLink {
-                    let viewModel = chatViewModels[chat.id] ?? ChatViewModel(store: store, chatId: chat.id)
                     ContentView()
-                        .environmentObject(viewModel)
+                        .environmentObject(viewModel(for: chat))
                         .environmentObject(charactersStore)
-                        .onAppear {
-                            store.markRead(chatId: chat.id)
-                            if chatViewModels[chat.id] == nil {
-                                chatViewModels[chat.id] = viewModel
-                            }
-                        }
+                        .onAppear { store.markRead(chatId: chat.id) }
                 } label: {
                     HStack(spacing: 8) {
                         // Avatars of participants (first 3)
@@ -48,7 +42,7 @@ struct ChatsListView: View {
                         }
                     }
                 }
-                            }
+                }
                 .onDelete { indexSet in
                     for idx in indexSet {
                         let chat = sorted[idx]
@@ -57,9 +51,11 @@ struct ChatsListView: View {
                 }
             }
             .navigationTitle("Chats")
-            .background(
-                NavigationLink(destination: NewChatView().environmentObject(store).environmentObject(charactersStore), isActive: Binding(get: { showingNewChat }, set: { if !$0 { showingNewChat = false } }), label: { EmptyView() })
-            )
+            .sheet(isPresented: $showingNewChat) {
+                NewChatView()
+                    .environmentObject(store)
+                    .environmentObject(charactersStore)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
@@ -70,6 +66,13 @@ struct ChatsListView: View {
                 }
             }
         }
+    }
+
+    private func viewModel(for chat: ChatThread) -> ChatViewModel {
+        if let existing = chatViewModels[chat.id] { return existing }
+        let vm = ChatViewModel(store: store, chatId: chat.id)
+        chatViewModels[chat.id] = vm
+        return vm
     }
 }
 

@@ -12,20 +12,9 @@ struct CharactersListView: View {
         NavigationStack {
             List(store.characters) { character in
                 NavigationLink {
-                    let chatId = "character_\(character.id)"
-                    let viewModel = characterViewModels[character.id] ?? ChatViewModel(store: chatsStore, chatId: chatId, characterId: character.id, characterName: character.displayName)
                     ContentView()
-                        .environmentObject(viewModel)
+                        .environmentObject(viewModel(for: character))
                         .environmentObject(store)
-                        .onAppear {
-                            if characterViewModels[character.id] == nil {
-                                characterViewModels[character.id] = viewModel
-                                // Create chat if doesn't exist
-                                if !chatsStore.chats.contains(where: { $0.id == chatId }) {
-                                    let _ = chatsStore.createChat(title: character.displayName, participants: [character])
-                                }
-                            }
-                        }
                 } label: {
                     HStack {
                         Image(systemName: character.avatarSystemName)
@@ -94,6 +83,18 @@ struct CharactersListView: View {
             }
             .task { await loadPresences() }
         }
+    }
+
+    private func viewModel(for character: Character) -> ChatViewModel {
+        if let existing = characterViewModels[character.id] { return existing }
+        let chatId = "character_\(character.id)"
+        let vm = ChatViewModel(store: chatsStore, chatId: chatId, characterId: character.id, characterName: character.displayName)
+        characterViewModels[character.id] = vm
+        // Create chat thread if it doesn't exist
+        if !chatsStore.chats.contains(where: { $0.id == chatId }) {
+            let _ = chatsStore.createChat(title: character.displayName, participants: [character])
+        }
+        return vm
     }
 
     private func loadPresences() async {

@@ -14,7 +14,10 @@ final class NotificationManager: NSObject, ObservableObject {
     /// Initiative IDs that have already triggered a notification.
     private var notifiedIDs: Set<String> {
         get { Set(UserDefaults.standard.stringArray(forKey: notifiedKey) ?? []) }
-        set { UserDefaults.standard.set(Array(newValue), forKey: notifiedKey) }
+        set {
+            let trimmed = Array(newValue.suffix(500))
+            UserDefaults.standard.set(trimmed, forKey: notifiedKey)
+        }
     }
 
     private override init() {
