@@ -11,9 +11,11 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import time
 import uuid
 import asyncio
+from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Set, Optional
 
@@ -478,6 +480,148 @@ async def get_garden_artifacts(creator_id: Optional[str] = None, limit: int = 10
 
     artifacts = garden_world.get_artifacts(creator_id=creator_id, limit=limit)
     return {"artifacts": [a.to_dict() for a in artifacts]}
+
+
+@app.get("/garden/conversations")
+async def get_garden_conversations(limit: int = 10):
+    """Return recent character-to-character conversations.
+
+    Reconstructs conversations from episodic memories (``[conversation with ...]``)
+    and falls back to cross-talk memory records when episodic data is unavailable.
+    """
+    from garden_graph.memory.episodic import EpisodicStore
+
+    conversations: List[Dict[str, Any]] = []
+    episodic = EpisodicStore()
+
+    # Pattern: [conversation with Name at Location] I said: ... They replied: ...
+    convo_re = re.compile(
+        r"\[conversation with (?P<other>\w+) at (?P<location>.+?)\] "
+        r"(?:I said: (?P<my_msg>.+?)(?:\.\.\.)? They replied: (?P<their_msg>.+?)(?:\.\.\.)?$"
+        r"|(?P<other_name>\w+) said: (?P<other_msg>.+?)(?:\.\.\.)? I replied: (?P<reply_msg>.+?)(?:\.\.\.)?$)"
+    )
+    continued_re = re.compile(
+        r"\[continued conversation with (?P<other>\w+)\] "
+        r"(?:I added: (?P<my_add>.+?)$|(?P<other_name>\w+) added: (?P<their_add>.+?)$)"
+    )
+
+    # Collect raw exchanges: keyed by (frozenset of participants, location, timestamp rounded to minute)
+    RawExchange = Dict[str, Any]
+    exchange_groups: Dict[str, RawExchange] = {}
+
+    for char_id in character_models:
+        records = episodic._load(char_id)
+        for rec in records:
+            m = convo_re.match(rec.summary)
+            if not m:
+                continue
+
+            other = m.group("other").lower()
+            location = m.group("location")
+            # Determine who spoke first
+            if m.group("my_msg"):
+                speaker_first = char_id
+                msg_first = m.group("my_msg").strip()
+                speaker_second = other
+                msg_second = m.group("their_msg").strip()
+            else:
+                speaker_first = m.group("other_name").lower() if m.group("other_name") else other
+                msg_first = m.group("other_msg").strip() if m.group("other_msg") else ""
+                speaker_second = char_id
+                msg_second = m.group("reply_msg").strip() if m.group("reply_msg") else ""
+
+            participants = tuple(sorted([char_id, other]))
+            # Group key: participants + location + time (to nearest 5 min)
+            ts = rec.created_at
+            group_key = f"{participants}|{location}|{ts[:16]}"
+
+            if group_key not in exchange_groups:
+                exchange_groups[group_key] = {
+                    "participants": list(participants),
+                    "messages": [],
+                    "location": location,
+                    "created_at": ts,
+                }
+
+            grp = exchange_groups[group_key]
+            # Add messages if not already present
+            existing_texts = {(m_["speaker"], m_["text"]) for m_ in grp["messages"]}
+            if (speaker_first, msg_first) not in existing_texts and msg_first:
+                grp["messages"].append({"speaker": speaker_first, "text": msg_first})
+            if (speaker_second, msg_second) not in existing_texts and msg_second:
+                grp["messages"].append({"speaker": speaker_second, "text": msg_second})
+
+        # Check for continued messages
+        for rec in records:
+            cm = continued_re.match(rec.summary)
+            if not cm:
+                continue
+            other = cm.group("other").lower()
+            participants = tuple(sorted([char_id, other]))
+            ts = rec.created_at
+            # Try to find the matching group
+            for gk, grp in exchange_groups.items():
+                if gk.startswith(f"{participants}|") and abs(
+                    len(ts) - len(grp["created_at"])
+                ) < 100:
+                    if cm.group("my_add"):
+                        speaker = char_id
+                        text = cm.group("my_add").strip()
+                    else:
+                        speaker = cm.group("other_name").lower() if cm.group("other_name") else other
+                        text = cm.group("their_add").strip() if cm.group("their_add") else ""
+                    existing_texts = {(m_["speaker"], m_["text"]) for m_ in grp["messages"]}
+                    if text and (speaker, text) not in existing_texts:
+                        grp["messages"].append({"speaker": speaker, "text": text})
+                    break
+
+    # If no episodic data, fall back to cross-talk memory records
+    if not exchange_groups:
+        cross_talk_re = re.compile(
+            r'\[cross-talk\] (?P<other>\w+) said "(?P<their_msg>.+?)" and I responded "(?P<my_msg>.+?)"'
+        )
+        ct_groups: Dict[str, RawExchange] = {}
+        for rec in memory_manager._records.values():
+            m = cross_talk_re.match(rec.event_text)
+            if not m:
+                continue
+            char_id = rec.character_id
+            other = m.group("other").lower()
+            participants = tuple(sorted([char_id, other]))
+            ts = rec.created_at.isoformat() if isinstance(rec.created_at, datetime) else str(rec.created_at)
+            group_key = f"{participants}|{ts[:16]}"
+
+            if group_key not in ct_groups:
+                ct_groups[group_key] = {
+                    "participants": list(participants),
+                    "messages": [],
+                    "location": None,
+                    "created_at": ts,
+                }
+            grp = ct_groups[group_key]
+            their_msg = m.group("their_msg").strip()
+            my_msg = m.group("my_msg").strip()
+            existing_texts = {(m_["speaker"], m_["text"]) for m_ in grp["messages"]}
+            if (other, their_msg) not in existing_texts:
+                grp["messages"].append({"speaker": other, "text": their_msg})
+            if (char_id, my_msg) not in existing_texts:
+                grp["messages"].append({"speaker": char_id, "text": my_msg})
+        exchange_groups = ct_groups
+
+    # Convert to final list, sorted newest first
+    for gk, grp in exchange_groups.items():
+        conversations.append({
+            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, gk)),
+            "participants": grp["participants"],
+            "messages": grp["messages"],
+            "location": grp["location"],
+            "created_at": grp["created_at"],
+        })
+
+    conversations.sort(key=lambda c: c["created_at"], reverse=True)
+    conversations = conversations[:limit]
+
+    return {"conversations": conversations}
 
 
 @app.post("/garden/update")

@@ -128,6 +128,19 @@ public final class APIClient {
         return try JSONDecoder().decode(ArtifactsResponse.self, from: data).artifacts
     }
 
+    // MARK: - Conversations
+
+    public func fetchConversations(limit: Int = 10) async throws -> [CharacterConversation] {
+        var components = URLComponents(url: Config.backendBaseURL.appendingPathComponent("garden/conversations"), resolvingAgainstBaseURL: false)!
+        components.queryItems = [.init(name: "limit", value: "\(limit)")]
+        guard let url = components.url else { throw APIError.invalidURL }
+        let (data, resp) = try await session.data(from: url)
+        guard let http = resp as? HTTPURLResponse, http.statusCode == 200 else {
+            throw APIError.requestFailed
+        }
+        return try JSONDecoder().decode(ConversationsResponse.self, from: data).conversations
+    }
+
     // MARK: - Health Diagnostics
 
     public func fetchDiagnostics(charId: String? = nil) async throws -> DiagnosticsResponse {
