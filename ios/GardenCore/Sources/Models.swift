@@ -82,6 +82,25 @@ public struct Artifact: Codable, Identifiable {
     }
 }
 
+// MARK: - Character Conversations
+
+public struct ConversationsResponse: Codable {
+    public let conversations: [CharacterConversation]
+}
+
+public struct CharacterConversation: Codable, Identifiable {
+    public let id: String
+    public let participants: [String]
+    public let messages: [ConversationMessage]
+    public let location: String?
+    public let created_at: String
+}
+
+public struct ConversationMessage: Codable {
+    public let speaker: String
+    public let text: String
+}
+
 // MARK: - Health Diagnostics
 
 public struct DiagnosticsResponse: Codable {

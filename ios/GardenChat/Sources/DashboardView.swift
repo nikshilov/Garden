@@ -11,6 +11,7 @@ struct DashboardView: View {
     @State private var presences: [CharacterPresence] = []
     @State private var initiatives: [Initiative] = []
     @State private var artifacts: [Artifact] = []
+    @State private var conversations: [CharacterConversation] = []
     @State private var isLoading = true
     @State private var error: String?
     @State private var navigateToCharacterId: String?
@@ -38,6 +39,11 @@ struct DashboardView: View {
 
                         if !presences.isEmpty {
                             presencesSection
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
+                        }
+
+                        if !conversations.isEmpty {
+                            overheardSection
                                 .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
@@ -222,6 +228,84 @@ struct DashboardView: View {
         }
     }
 
+    private var overheardSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("Overheard in the Garden", systemImage: "bubble.left.and.bubble.right")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+
+            ForEach(conversations) { conversation in
+                conversationCard(conversation)
+            }
+        }
+    }
+
+    private func conversationCard(_ conversation: CharacterConversation) -> some View {
+        let names = conversation.participants.map { charId in
+            charactersStore.characters.first(where: { $0.id == charId })?.displayName ?? charId.capitalized
+        }
+        let header = names.joined(separator: " & ")
+        let location = conversation.location.map { formatLocation($0) }
+
+        return VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                HStack(spacing: -6) {
+                    ForEach(conversation.participants, id: \.self) { charId in
+                        Image(systemName: characterIcon(charId))
+                            .font(.caption)
+                            .foregroundStyle(.white)
+                            .frame(width: 24, height: 24)
+                            .background(characterColor(charId), in: Circle())
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(header)
+                        .font(.caption.weight(.semibold))
+                    if let location {
+                        Text(location)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(conversation.messages.enumerated()), id: \.offset) { _, message in
+                    let speakerName = charactersStore.characters.first(where: { $0.id == message.speaker })?.displayName ?? message.speaker.capitalized
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(speakerName)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(characterColor(message.speaker))
+                        Text(message.text)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(.quaternary, lineWidth: 0.5)
+        )
+    }
+
+    private func characterColor(_ charId: String) -> Color {
+        switch charId {
+        case "eve": return .pink
+        case "atlas": return .blue
+        case "adam": return .orange
+        case "lilith": return .purple
+        case "sophia": return .mint
+        default: return .gray
+        }
+    }
+
     private var artifactsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Recent Creations")
@@ -290,16 +374,19 @@ struct DashboardView: View {
             async let stateReq = api.fetchGardenState()
             async let initiativesReq = api.fetchPendingInitiatives()
             async let artifactsReq = api.fetchArtifacts(limit: 5)
+            async let conversationsReq = api.fetchConversations(limit: 5)
 
             let stateResp = try await stateReq
             let fetchedInitiatives = (try? await initiativesReq) ?? []
             let fetchedArtifacts = (try? await artifactsReq) ?? []
+            let fetchedConversations = (try? await conversationsReq) ?? []
 
             withAnimation(.easeInOut(duration: 0.3)) {
                 gardenState = stateResp.state
                 presences = stateResp.presences
                 initiatives = fetchedInitiatives
                 artifacts = fetchedArtifacts
+                conversations = fetchedConversations
                 isLoading = false
             }
 

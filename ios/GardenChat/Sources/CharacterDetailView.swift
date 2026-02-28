@@ -6,6 +6,9 @@ struct CharacterDetailView: View {
     @State private var healthStatus: String?
     @State private var checks: [DiagnosticCheck] = []
     @State private var isLoadingHealth = true
+    @State private var artifacts: [Artifact] = []
+    @State private var isLoadingArtifacts = true
+    @State private var selectedArtifact: Artifact?
     var onChat: () -> Void
 
     private let api = APIClient()
@@ -104,6 +107,45 @@ struct CharacterDetailView: View {
                 .padding()
                 .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
 
+                // Creations
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Creations")
+                            .font(.headline)
+                        Spacer()
+                        if isLoadingArtifacts {
+                            ProgressView()
+                        }
+                    }
+
+                    if artifacts.isEmpty && !isLoadingArtifacts {
+                        Text("No creations yet")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ForEach(artifacts) { artifact in
+                            HStack(spacing: 10) {
+                                Image(systemName: artifactIcon(artifact.artifact_type))
+                                    .foregroundStyle(.purple)
+                                    .frame(width: 24)
+                                Text(artifact.title)
+                                    .font(.subheadline)
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.vertical, 4)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                selectedArtifact = artifact
+                            }
+                        }
+                    }
+                }
+                .padding()
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+
                 // Chat button
                 Button(action: onChat) {
                     Label("Start Chat", systemImage: "bubble.left.fill")
@@ -120,6 +162,10 @@ struct CharacterDetailView: View {
         .navigationTitle(character.displayName)
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadHealth() }
+        .task { await loadArtifacts() }
+        .sheet(item: $selectedArtifact) { artifact in
+            ArtifactDetailView(artifact: artifact, creatorName: character.displayName)
+        }
     }
 
     private func loadHealth() async {
@@ -130,6 +176,26 @@ struct CharacterDetailView: View {
             checks = diag.checks ?? []
         } catch {
             healthStatus = nil
+        }
+    }
+
+    private func loadArtifacts() async {
+        defer { isLoadingArtifacts = false }
+        do {
+            artifacts = try await api.fetchArtifacts(creatorId: character.id, limit: 5)
+        } catch {
+            artifacts = []
+        }
+    }
+
+    private func artifactIcon(_ type: String) -> String {
+        switch type {
+        case "poem": return "text.quote"
+        case "theory": return "lightbulb.fill"
+        case "sketch": return "paintbrush.fill"
+        case "song": return "music.note"
+        case "letter": return "envelope.fill"
+        default: return "doc.text.fill"
         }
     }
 
