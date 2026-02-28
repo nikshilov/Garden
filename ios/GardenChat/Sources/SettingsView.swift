@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @EnvironmentObject var charactersStore: CharactersStore
+    @AppStorage("localNotificationsEnabled") private var localNotificationsEnabled = true
     @AppStorage("showCostMeta") private var showCostMeta: Bool = true
     @AppStorage("selectedModel") private var selectedModelRaw: String = LLMModel.gpt4o.rawValue
     @AppStorage("backendBaseURL") private var backendURL: String = "http://127.0.0.1:5050"
@@ -116,6 +117,8 @@ struct SettingsView: View {
                     ProgressView()
                 }
             } else {
+                Toggle("Local Notifications", isOn: $localNotificationsEnabled)
+
                 Toggle("Character Initiatives", isOn: $initiativesEnabled)
                     .onChange(of: initiativesEnabled) { _ in saveSettings() }
 
@@ -168,7 +171,7 @@ struct SettingsView: View {
         } header: {
             Text("Notifications")
         } footer: {
-            Text("When enabled, characters may reach out when they have something on their mind.")
+            Text("Local Notifications will alert you when a character reaches out. Character Initiatives controls whether characters initiate on the backend.")
         }
     }
 
