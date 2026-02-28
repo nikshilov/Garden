@@ -47,4 +47,71 @@ final class ChatHistoryStore {
     private func fileURL(for chatId: String) -> URL {
         directory.appendingPathComponent("\(chatId).json", isDirectory: false)
     }
+
+    // MARK: - Export/Import
+
+    /// Export all chats to a single JSON file
+    func exportAllChats() -> Data? {
+        var allChats: [String: [ChatMessage]] = [:]
+
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+
+        for file in files where file.pathExtension == "json" {
+            let chatId = file.deletingPathExtension().lastPathComponent
+            let messages = loadMessages(chatId: chatId)
+            allChats[chatId] = messages
+        }
+
+        let exportData = ChatExportData(
+            version: "1.0",
+            exportDate: ISO8601DateFormatter().string(from: Date()),
+            chats: allChats
+        )
+
+        return try? encoder.encode(exportData)
+    }
+
+    /// Import chats from exported JSON data
+    func importChats(from data: Data) -> ImportResult {
+        guard let exportData = try? decoder.decode(ChatExportData.self, from: data) else {
+            return ImportResult(success: false, chatsImported: 0, error: "Invalid export format")
+        }
+
+        var importedCount = 0
+        for (chatId, messages) in exportData.chats {
+            saveMessages(messages, chatId: chatId)
+            importedCount += 1
+        }
+
+        return ImportResult(success: true, chatsImported: importedCount, error: nil)
+    }
+
+    /// List all available chat IDs
+    func listAllChatIds() -> [String] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) else {
+            return []
+        }
+        return files.compactMap { file -> String? in
+            guard file.pathExtension == "json" else { return nil }
+            return file.deletingPathExtension().lastPathComponent
+        }
+    }
+}
+
+// MARK: - Export Data Models
+
+struct ChatExportData: Codable {
+    let version: String
+    let exportDate: String
+    let chats: [String: [ChatMessage]]
+}
+
+struct ImportResult {
+    let success: Bool
+    let chatsImported: Int
+    let error: String?
 }

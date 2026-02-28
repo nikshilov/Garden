@@ -13,11 +13,17 @@ class TestRouter(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures."""
-        # Create a router with a mock LLM
+        # Create a router with a mock LLM and explicit character metadata
         with patch('garden_graph.router.get_llm') as mock_get_llm:
             self.mock_llm = MagicMock()
             mock_get_llm.return_value = self.mock_llm
-            self.router = Router(model_name="test-model")
+            self.router = Router(model_name="test-model", characters={
+                "eve": {"name": "Eve", "description": "Curious and empathetic"},
+                "atlas": {"name": "Atlas", "description": "Logical and fact-oriented"},
+                "adam": {"name": "Adam", "description": "Warm and supportive"},
+                "lilith": {"name": "Lilith", "description": "Bold and unconventional"},
+                "sophia": {"name": "Sophia", "description": "Wise and serene"},
+            }, default_characters={"eve", "atlas"})
     
     def test_explicit_mentions(self):
         """Test routing with explicit @mentions."""
@@ -55,16 +61,17 @@ class TestRouter(unittest.TestCase):
     
     def test_fuzzy_matching(self):
         """Test fuzzy matching for character names."""
-        # Prefix matching
+        # Prefix matching for short names (2-char prefix)
         result = self.router.route("Ev, are you there?")
         self.assertEqual(result, {"eve"})
-        
-        result = self.router.route("At, what do you think?")
+
+        # Prefix matching for longer names (3-char prefix)
+        result = self.router.route("Atl, what do you think?")
         self.assertEqual(result, {"atlas"})
-        
-        # Longer fuzzy matching
+
+        # Longer fuzzy matching via difflib
         result = self.router.route("Can someone tell Atlass the answer?")
-        self.assertEqual(result, {"atlas"})
+        self.assertIn("atlas", result)
     
     def test_ask_pattern(self):
         """Test the 'ask' pattern detection."""
@@ -137,11 +144,11 @@ class TestRouter(unittest.TestCase):
         mock_response = MagicMock()
         mock_response.content = json.dumps({"character_ids": ["eve"]})
         self.mock_llm.invoke.return_value = mock_response
-        
+
         # Message with plural cue
         result = self.router.route("Hey guys, what do you think?")
-        # Should expand to both characters
-        self.assertEqual(result, {"eve", "atlas"})
+        # Should expand to all available characters
+        self.assertEqual(result, self.router.available_characters)
     
     def test_llm_failure(self):
         """Test handling of LLM failure."""

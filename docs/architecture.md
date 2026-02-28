@@ -72,6 +72,47 @@ Image | id, localURL, visionTags[], uploadedAt
 • Characters may post message (“Eve: I’ve been thinking…”) if memory weight triggers.
 • Push notification sent to user.
 
+## Autonomous Inter-Character Conversations
+• During each heartbeat tick, co-located characters may talk to each other.
+• Probability: 30% base, modified by energy (low at night) and relationship strength.
+• Each conversation is 2-3 messages; stored via `process_cross_talk()` (updates relationships + creates memories).
+• Each character participates in at most one conversation per tick.
+• Estimated cost: ~$0.006/day (gpt-4o-mini).
+
+## iOS App Architecture
+
+The iOS app is built with SwiftUI (iOS 17+) and structured as two targets managed by XcodeGen:
+
+### Targets
+- **GardenCore** — Framework containing API client, models, and configuration
+- **GardenChat** — Main app with all SwiftUI views and view models
+
+### Key Views
+
+| View | Purpose |
+|------|---------|
+| `DashboardView` | Living garden dashboard — garden state (season, weather, time), character presences, pending initiatives, artifact cards, overheard conversations |
+| `CharacterDetailView` | Character profile with health diagnostics and creations |
+| `ChatsListView` | Chat list (world chat + 1-on-1 character chats) |
+| `Chat+Exyte` | Chat interface powered by ExyteChat |
+| `SettingsView` | Backend URL configuration, initiative toggle controls |
+| `ArtifactDetailView` | Full-screen artifact reading |
+| `OnboardingView` | First-launch experience |
+| `ContentView` | Tab-based root navigation |
+
+### API Surface Used
+
+| Endpoint | Used By |
+|----------|---------|
+| `POST /chat` | `ChatViewModel` — send messages, receive replies |
+| `GET /garden/state` | `DashboardView` — season, weather, time of day |
+| `GET /characters` | `CharactersStore` — character list with presences |
+| `GET /initiatives/pending` | `DashboardView` — initiative banners |
+| `GET /garden/artifacts` | `DashboardView`, `CharacterDetailView` — artifact cards |
+| `GET /health/diagnostics` | `CharacterDetailView` — health status display |
+| `GET /garden/conversations` | `DashboardView` — overheard inter-character conversations |
+| `POST /initiatives/{id}/dismiss` | `DashboardView` — dismiss initiative |
+
 ## External Calls Diagram
 ```
 CharacterNode ──► LLM API (HTTPS)
@@ -81,6 +122,12 @@ CostTracker    ──► Local DB (save tokens)
 CloudKit Sync  ◄─┬─ Core Data
                 └─ Image files (CKAssets)
 ```
+
+## Deployment
+• Backend is containerized via Docker (`backend/Dockerfile`) with `docker-compose.yml` at repo root.
+• Named volumes (`garden-data`, `garden-graph-data`) persist character memories and world state across restarts.
+• Health check: `GET /health` → `{"status": "ok"}`.
+• `restart: unless-stopped` ensures persistent operation.
 
 ## Technology Stack
 Category | Choice | Notes
@@ -93,6 +140,8 @@ Persistence | Core Data (SQLite) | NSPersistentCloudKitContainer
 Background | BGTaskScheduler | Handles chatter & sync
 Testing | XCTest + SnapshotTesting |
 CI | Xcode Cloud | Run unit + UI tests, build → TestFlight
+Backend | Python 3.11, FastAPI, LangGraph | Docker-containerized
+Backend Testing | pytest | 162 tests
 
 ## Security & Privacy Highlights
 • End-to-end encrypted sync via CloudKit.
@@ -112,4 +161,4 @@ During prompt assembly it merges _short-term_ + top-K (episodic ∪ semantic).
 See [long_context.md](long_context.md) for full algorithm.
 
 ---
-*(Last updated: 2025-05-21)*
+*(Last updated: 2026-02-28)*

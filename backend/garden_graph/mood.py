@@ -7,9 +7,12 @@ slowly decays over the course of a (simulated) day.
 """
 from __future__ import annotations
 
+import logging
 import math
 import random
 from dataclasses import dataclass, field
+
+logger = logging.getLogger("garden.mood")
 from datetime import datetime, timedelta, timezone
 from typing import Dict
 
@@ -77,7 +80,7 @@ def generate_mood(previous_valence: float | None = None, sigma: float = 0.25) ->
             base = 0.0
         value = base + rng.gauss(0, sigma)
         vector[axis] = max(-0.4, min(0.4, value))
-        return MoodState(vector=vector)
+    return MoodState(vector=vector)
 
 # Adjective mapping for prompt rendering
 AXIS_ADJECTIVE = {

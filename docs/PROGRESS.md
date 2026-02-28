@@ -19,15 +19,47 @@
 
 ## Current Status Checklist
 - [x] P0 Docs Sprint ✅
-- [ ] P1 LangGraph PoC ⏳
-- [ ] P2 Memory Core ⬜️
-- [ ] P3 Cost Tracker ⬜️
+- [x] P1 LangGraph PoC ✅ (Router + 5 characters working, 62 tests pass)
+- [x] P2 Memory Core ✅ (MemoryManager, ReflectionEngine, decay, relationship tracking)
+- [x] P3 Cost Tracker ✅ (10 tests, CSV export, budget alerts in iOS)
 - [ ] P4 Persistence & Sync ⬜️
 - [ ] P5 LangGraph MVP ⬜️
-- [ ] P6 iOS UI PoC ⬜️
+- [x] P6 iOS UI PoC ✅ (SwiftUI + ExyteChat, multi-character bubbles, @mentions)
 - [ ] P7 Image & Vision ⬜️
 - [ ] P8 Background & Push ⬜️
 - [ ] P9 MVP Polish ⬜️
 
+## Garden Plan (PLAN.md) — All 7 Phases Complete
+
+| Phase | Name | Status |
+|-------|------|--------|
+| Phase 1 | Heartbeat — Life Between Conversations | ✅ Done |
+| Phase 2 | Roots — Semantic Memory (embeddings) | ✅ Done |
+| Phase 3 | Mycelium — Inter-Character Relationships | ✅ Done |
+| Phase 4 | Growth — Identity Evolution | ✅ Done |
+| Phase 5 | Voice — Reaching Out (initiative + push) | ✅ Done |
+| Phase 6 | Soil — Sense of Place (garden world) | ✅ Done |
+| Phase 7 | Autonomy — Self-Healing Garden | ✅ Done |
+
+### Post-Plan Additions
+- **Autonomous inter-character conversations** — Characters talk to each other between user sessions during heartbeat ticks (co-location grouping, energy/relationship-based probability, 2-3 message exchanges via gpt-4o-mini)
+- **Docker containerization** — Dockerfile + docker-compose.yml for persistent deployment with named volumes and health checks
+
+### iOS App Enhancement
+
+- **Living Dashboard** — `DashboardView` showing garden state (season, weather, time of day), character presences (location, activity, energy), pending initiatives, and artifact cards
+- **Character Profiles** — `CharacterDetailView` with character detail, health diagnostics display, and creations section
+- **Initiative UI** — Banner-style initiative display, dismiss action, background polling, badge count
+- **Settings** — Editable backend URL, initiative toggle controls
+- **Onboarding** — First-launch onboarding flow
+- **Artifact Detail** — Full-screen artifact reading view
+- **Overheard in the Garden** — Inter-character conversation display on dashboard
+- **UX Polish** — Shimmer loading skeletons, smooth animations, haptic feedback
+
+> **Status**: In progress — remaining work includes push notifications (APNs), additional UX polish, and character conversation surfacing in chat.
+
+### Test Suite
+- 162 tests total (161 passing, 1 pre-existing flaky test in test_initiative.py)
+
 ---
-*(Last updated: 2025-05-21)*
+*(Last updated: 2026-02-28)*

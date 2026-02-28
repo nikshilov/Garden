@@ -1,14 +1,17 @@
 """
 Main LangGraph orchestration for Garden world chat.
 """
+import logging
 from typing import Dict, List, Tuple, Set, Any, Optional, TypedDict, Annotated, cast
 from langchain_core.messages import BaseMessage
 import langgraph
 from langgraph.graph import StateGraph, END
 import json
 
+logger = logging.getLogger("garden.graph")
+
 from garden_graph.router import Router
-from garden_graph.character import Character
+from garden_graph.character import Character, CHARACTER_TEMPLATES
 from garden_graph.cost_tracker import CostTracker
 from garden_graph.config import ROUTER_MODEL, INTIMACY_AFFECTION_THRESHOLD, INTIMACY_AROUSAL_THRESHOLD
 from datetime import datetime, timezone
@@ -35,13 +38,10 @@ def create_world_chat_graph(
 ) -> StateGraph:
     """Create the main LangGraph for world chat."""
     
-    # Initialize components
-    router = Router(model_name=router_model)
-    
     # Use provided cost tracker or create a new one
     if cost_tracker is None:
         cost_tracker = CostTracker()
-    
+
     # Initialize characters with specified models
     if character_models is None:
         character_models = {
@@ -53,7 +53,17 @@ def create_world_chat_graph(
         char_id: Character(char_id, model_name=model, memory_manager=memory_manager)
         for char_id, model in character_models.items()
     }
-    
+
+    # Build character info for router
+    char_info = {}
+    for char_id in character_models:
+        template = CHARACTER_TEMPLATES.get(char_id, {})
+        char_info[char_id] = {
+            "name": template.get("name", char_id.capitalize()),
+            "description": template.get("prompt", "")[:100]  # First 100 chars as description
+        }
+    router = Router(model_name=router_model, characters=char_info)
+
     # Define nodes
     def _should_auto_intimate(char_id: str) -> bool:
         """Return True if intimacy mode should auto-activate for this character."""
@@ -87,21 +97,18 @@ def create_world_chat_graph(
         # Используем существующий метод router.route для определения активных персонажей
         active_chars = router.route(user_message, history)
         # Auto-trigger intimacy if not already active
+        intimacy_triggered = False
         if not state.get("intimacy_mode"):
             for cid in active_chars:
                 if _should_auto_intimate(cid):
-                    state["intimacy_mode"] = True
+                    intimacy_triggered = True
                     active_chars = [cid]
-                    print(f"[Graph] Auto-activated Intimacy Mode for {cid}")
+                    logger.info(f"Auto-activated Intimacy Mode for {cid}")
                     break
         # If intimacy mode already on, limit to the first character
-        if state.get("intimacy_mode"):
+        if state.get("intimacy_mode") or intimacy_triggered:
             active_chars = active_chars[:1] if active_chars else []
-        print(f"[Graph:route_message] Router selected: {active_chars}")
-        
-        # Track character selections for analytics & display (only first time)
-        if not state.get("selected_characters"):
-            state["selected_characters"] = set(active_chars)
+        logger.info(f"Router selected: {active_chars}")
         
         # Analyze message and create memories / schedule events
         if memory_manager and active_chars:
@@ -109,26 +116,29 @@ def create_world_chat_graph(
                 try:
                     memory_manager.analyze_message(char_id, user_message, is_user_message=True)
                 except Exception as e:
-                    print(f"[Graph:route_message] Error analyzing message for {char_id}: {e}")
+                    logger.error(f"Error analyzing message for {char_id}: {e}")
         
         # Save memory and events state after processing a message
         if memory_manager:
             try:
                 memory_manager.save_to_file(memory_manager.get_default_filepath())
-                print(f"[Graph:route_message] Saved memory state")
+                logger.debug(f"Saved memory state")
             except Exception as e:
-                print(f"[Graph:route_message] Error saving memory state: {e}")
+                logger.error(f"Error saving memory state: {e}")
         
         # Update active characters in state
         # Return both the active queue and the original selection for downstream nodes
-        return {
+        result = {
             "active_characters": set(active_chars),
             "selected_characters": set(active_chars),
         }
+        if intimacy_triggered:
+            result["intimacy_mode"] = True
+        return result
     
     def character_node(state: ChatState, character_id: str) -> Dict[str, Any]:
         """Character node generates a response for a specific character."""
-        print(f"[Graph:character_node:{character_id}] Entered with active_characters: {state.get('active_characters')}, selected_characters: {state.get('selected_characters')}")
+        logger.debug(f"character_node:{character_id} entered with active_characters: {state.get('active_characters')}, selected_characters: {state.get('selected_characters')}")
             
         user_message = state["user_message"]
         history = state["message_history"]
@@ -141,8 +151,8 @@ def create_world_chat_graph(
         else:
             character = characters[character_id]
             response = character.respond(user_message, history)
-        print(f"[Graph:character_node:{character_id}] Generating response for '{user_message}'")
-        print(f"[Graph:character_node:{character_id}] Generated response: '{response[:30]}...'")
+        logger.debug(f"character_node:{character_id} generating response for '{user_message}'")
+        logger.info(f"character_node:{character_id} generated response: '{response[:30]}...'")
         
         # Record cost for this character model interaction
         if state.get("intimacy_mode"):
@@ -163,19 +173,21 @@ def create_world_chat_graph(
         }
         
         # Return updates - don't modify state directly
-        # Add this character's response and the new message to history
+        # Add this character's response, new message to history, and remove self from active queue
+        remaining = state.get("active_characters", set()) - {character_id}
         updates = {
             "character_responses": {**state.get("character_responses", {}), character_id: response},
-            "message_history": [*state.get("message_history", []), new_message]
+            "message_history": [*state.get("message_history", []), new_message],
+            "active_characters": remaining,
         }
         
-        print(f"[Graph:character_node:{character_id}] Returning updates: {str(updates)[:100]}...")
+        logger.debug(f"character_node:{character_id} returning updates: {str(updates)[:100]}...")
         return updates
     
     def collate_node(state: ChatState) -> Dict[str, Any]:
         """Collate responses from all active characters."""
-        print(f"[Graph:collate_node] Entered with character_responses: {list(state['character_responses'].keys())}")
-        print(f"[Graph:collate_node] selected_characters: {state.get('selected_characters')}")
+        logger.debug(f"collate_node entered with character_responses: {list(state['character_responses'].keys())}")
+        logger.debug(f"collate_node selected_characters: {state.get('selected_characters')}")
         
         # Get all character responses
         responses = state["character_responses"]
@@ -199,7 +211,7 @@ def create_world_chat_graph(
                 response_parts.append(f"**{characters[char_id].name}**: {responses[char_id]}")
         
         final_response = "\n\n".join(response_parts)
-        print(f"[Graph:collate_node] Final response: '{final_response[:50]}...'")
+        logger.debug(f"collate_node final response: '{final_response[:50]}...'")
         
         # Memory management: process conversation and reflect
         if memory_manager is not None:
@@ -227,7 +239,7 @@ def create_world_chat_graph(
                 )
                 
                 if created_memories:
-                    print(f"[Graph:collate_node] Created {len(created_memories)} new memories for {char_id}")
+                    logger.info(f"Created {len(created_memories)} new memories for {char_id}")
                 
                 # 2. Run reflection on existing memories
                 context = user_message
@@ -241,14 +253,14 @@ def create_world_chat_graph(
     
     def cross_talk_node(state: ChatState) -> Dict[str, Any]:
         """Allow characters to respond to each other's initial responses."""
-        print(f"[Graph:cross_talk_node] Entered with character_responses: {list(state['character_responses'].keys())}")
+        logger.debug(f"cross_talk_node entered with character_responses: {list(state['character_responses'].keys())}")
         
         responses = state["character_responses"]
         selected_chars = state.get("selected_characters", set())
         
         # Only do cross-talk if multiple characters responded
         if len(responses) < 2:
-            print(f"[Graph:cross_talk_node] Only {len(responses)} character(s) responded, skipping cross-talk")
+            logger.debug(f"cross_talk_node: only {len(responses)} character(s) responded, skipping cross-talk")
             return {}
         
         # Let each character see the other's response and optionally react
@@ -279,9 +291,18 @@ After seeing what {' and '.join([characters[oid].name for oid in responses if oi
 
 Be natural in your response - you may agree, partially agree, or have a different take. If you genuinely have nothing to add, just respond with "pass".
 Keep it brief (1-2 sentences) and respond in the same language as the conversation."""
-            
+
+            # Inject character-to-character relationship context
+            if memory_manager:
+                try:
+                    char_rel_ctx = memory_manager.char_relationship_context(char_id)
+                    if char_rel_ctx:
+                        cross_talk_prompt += "\n\n" + char_rel_ctx
+                except Exception as e:
+                    logger.warning(f"cross_talk_node:{char_id} failed to get relationship context: {e}")
+
             character = characters[char_id]
-            print(f"[Graph:cross_talk_node:{char_id}] Generating cross-talk response")
+            logger.debug(f"cross_talk_node:{char_id} generating cross-talk response")
             
             # Get character's cross-talk response
             from langchain_core.messages import SystemMessage, HumanMessage
@@ -302,12 +323,26 @@ Keep it brief (1-2 sentences) and respond in the same language as the conversati
                 # Only add if character has something to say
                 if cross_talk_response.lower() != "pass" and len(cross_talk_response) > 5:
                     cross_talk_responses[char_id] = cross_talk_response
-                    print(f"[Graph:cross_talk_node:{char_id}] Added cross-talk: '{cross_talk_response[:30]}...'")
+                    logger.debug(f"cross_talk_node:{char_id} added cross-talk: '{cross_talk_response[:30]}...'")
+
+                    # Store cross-talk interaction in both characters' memories
+                    if memory_manager:
+                        for other_id in responses:
+                            if other_id != char_id:
+                                try:
+                                    memory_manager.process_cross_talk(
+                                        from_char=char_id,
+                                        to_char=other_id,
+                                        interaction_text=responses[other_id],  # what the other said
+                                        response_text=cross_talk_response,      # how this char reacted
+                                    )
+                                except Exception as e:
+                                    logger.warning(f"cross_talk_node: failed to process cross-talk memory for {char_id}->{other_id}: {e}")
                 else:
-                    print(f"[Graph:cross_talk_node:{char_id}] Character passed on cross-talk")
+                    logger.debug(f"cross_talk_node:{char_id} character passed on cross-talk")
                     
             except Exception as e:
-                print(f"[Graph:cross_talk_node:{char_id}] Error during cross-talk: {e}")
+                logger.error(f"cross_talk_node:{char_id} error during cross-talk: {e}")
                 continue
         
         # Merge cross-talk responses with original responses
@@ -319,22 +354,22 @@ Keep it brief (1-2 sentences) and respond in the same language as the conversati
                     if char_id in cross_talk_responses:
                         merged_responses[char_id] += f"\n\n*({cross_talk_responses[char_id]})*"
             
-            print(f"[Graph:cross_talk_node] Added {len(cross_talk_responses)} cross-talk responses")
+            logger.debug(f"cross_talk_node: added {len(cross_talk_responses)} cross-talk responses")
             return {"character_responses": merged_responses}
         
-        print(f"[Graph:cross_talk_node] No cross-talk responses generated")
+        logger.debug(f"cross_talk_node: no cross-talk responses generated")
         return {}
         
     # Define router branch - sequential processing
     def router_branch(state: ChatState) -> str:
         """Return next node to handle one character at a time."""
-        print(f"[Graph:router_branch] Entered with active_characters: {state['active_characters']}")
+        logger.debug(f"router_branch entered with active_characters: {state['active_characters']}")
         if not state["active_characters"]:
-            print(f"[Graph:router_branch] No active characters left, going to cross_talk")
+            logger.debug(f"router_branch: no active characters left, going to cross_talk")
             return "cross_talk"
-        # Pop one character to handle now
-        next_char = state["active_characters"].pop()
-        print(f"[Graph:router_branch] Popped character: {next_char}, remaining: {state['active_characters']}")
+        # Peek at the first character without mutating state
+        next_char = next(iter(state["active_characters"]))
+        logger.debug(f"router_branch: next character: {next_char}, active: {state['active_characters']}")
         return f"character_{next_char}"
     
     # Build the graph - simplified for latest LangGraph API

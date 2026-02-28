@@ -12,9 +12,12 @@ final class ChatViewModel: ObservableObject {
     @Published var isTyping: Bool = false
     private var typingPlaceholderId: UUID?
     @Published var totalCostUSD: Double = 0.0
+    @Published var budgetLimit: Double = 0.0
+    @Published var budgetExceeded: Bool = false
+    @Published var budgetRemaining: Double = 0.0
     
     var characterName: String = "Garden"
-    // characterId removed – router decides speaker
+    var characterId: String? = nil
 
     private let api = APIClient()
     // Map ChatMessage to ExyteChat.Message for ChatView
@@ -102,9 +105,11 @@ final class ChatViewModel: ObservableObject {
     
 
     // MARK: - Init
-    init(store: ChatsStore, chatId: String = "world") {
+    init(store: ChatsStore, chatId: String = "world", characterId: String? = nil, characterName: String = "Garden") {
         self.chatsStore = store
         self.chatId = chatId
+        self.characterId = characterId
+        self.characterName = characterName
         // Load history and observe changes
         setupPersistence()
     }
@@ -156,29 +161,25 @@ final class ChatViewModel: ObservableObject {
             print("⏳ Awaiting server reply…")
             defer { isTyping = false }
             do {
-                let response = try await api.sendMessage(text: text, characterId: nil)
+                let response = try await api.sendMessage(text: text, characterId: characterId)
                 let duration = Date().timeIntervalSince(startTime)
                 let botMessages = ChatViewModel.parseMultiSpeakerResponse(response.text, totalCost: response.cost_total_usd, totalDuration: duration)
                 print("🟣 Server replied with \(botMessages.count) messages.")
 
                 if let pid = typingPlaceholderId, let idx = messages.firstIndex(where: { $0.id == pid }) {
-                    // Replace placeholder with the first message, append the rest
-                    if let firstMsg = botMessages.first {
-                        messages[idx] = firstMsg
-                        if botMessages.count > 1 {
-                            messages.append(contentsOf: botMessages.dropFirst())
-                        }
-                    }
-                } else {
-                    messages.append(contentsOf: botMessages)
+                    messages.remove(at: idx)
                 }
                 
+                messages.append(contentsOf: botMessages)
                 messages = messages
                 objectWillChange.send()
                 typingPlaceholderId = nil
                 totalCostUSD = response.cost_total_usd
+                budgetLimit = response.budget_limit ?? 0.0
+                budgetExceeded = response.budget_exceeded ?? false
+                budgetRemaining = response.budget_remaining ?? 0.0
                 chatsStore.incrementUnread(chatId: chatId)
-                let lastMessageText = botMessages.map { "\($0.speaker ?? ""): \($0.text)" }.joined(separator: "\n")
+                let lastMessageText = botMessages.map { "\($0.speaker ?? characterName): \($0.text)" }.joined(separator: "\n")
                 chatsStore.updateLastMessage(chatId: chatId, text: lastMessageText)
             } catch {
                 let errMsg = ChatMessage(text: "Error: Could not connect to the server.", isUser: false)
