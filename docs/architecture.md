@@ -79,6 +79,40 @@ Image | id, localURL, visionTags[], uploadedAt
 • Each character participates in at most one conversation per tick.
 • Estimated cost: ~$0.006/day (gpt-4o-mini).
 
+## iOS App Architecture
+
+The iOS app is built with SwiftUI (iOS 17+) and structured as two targets managed by XcodeGen:
+
+### Targets
+- **GardenCore** — Framework containing API client, models, and configuration
+- **GardenChat** — Main app with all SwiftUI views and view models
+
+### Key Views
+
+| View | Purpose |
+|------|---------|
+| `DashboardView` | Living garden dashboard — garden state (season, weather, time), character presences, pending initiatives, artifact cards, overheard conversations |
+| `CharacterDetailView` | Character profile with health diagnostics and creations |
+| `ChatsListView` | Chat list (world chat + 1-on-1 character chats) |
+| `Chat+Exyte` | Chat interface powered by ExyteChat |
+| `SettingsView` | Backend URL configuration, initiative toggle controls |
+| `ArtifactDetailView` | Full-screen artifact reading |
+| `OnboardingView` | First-launch experience |
+| `ContentView` | Tab-based root navigation |
+
+### API Surface Used
+
+| Endpoint | Used By |
+|----------|---------|
+| `POST /chat` | `ChatViewModel` — send messages, receive replies |
+| `GET /garden/state` | `DashboardView` — season, weather, time of day |
+| `GET /characters` | `CharactersStore` — character list with presences |
+| `GET /initiatives/pending` | `DashboardView` — initiative banners |
+| `GET /garden/artifacts` | `DashboardView`, `CharacterDetailView` — artifact cards |
+| `GET /health/diagnostics` | `CharacterDetailView` — health status display |
+| `GET /garden/conversations` | `DashboardView` — overheard inter-character conversations |
+| `POST /initiatives/{id}/dismiss` | `DashboardView` — dismiss initiative |
+
 ## External Calls Diagram
 ```
 CharacterNode ──► LLM API (HTTPS)
@@ -127,4 +161,4 @@ During prompt assembly it merges _short-term_ + top-K (episodic ∪ semantic).
 See [long_context.md](long_context.md) for full algorithm.
 
 ---
-*(Last updated: 2026-02-27)*
+*(Last updated: 2026-02-28)*

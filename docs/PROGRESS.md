@@ -45,8 +45,21 @@
 - **Autonomous inter-character conversations** — Characters talk to each other between user sessions during heartbeat ticks (co-location grouping, energy/relationship-based probability, 2-3 message exchanges via gpt-4o-mini)
 - **Docker containerization** — Dockerfile + docker-compose.yml for persistent deployment with named volumes and health checks
 
+### iOS App Enhancement
+
+- **Living Dashboard** — `DashboardView` showing garden state (season, weather, time of day), character presences (location, activity, energy), pending initiatives, and artifact cards
+- **Character Profiles** — `CharacterDetailView` with character detail, health diagnostics display, and creations section
+- **Initiative UI** — Banner-style initiative display, dismiss action, background polling, badge count
+- **Settings** — Editable backend URL, initiative toggle controls
+- **Onboarding** — First-launch onboarding flow
+- **Artifact Detail** — Full-screen artifact reading view
+- **Overheard in the Garden** — Inter-character conversation display on dashboard
+- **UX Polish** — Shimmer loading skeletons, smooth animations, haptic feedback
+
+> **Status**: In progress — remaining work includes push notifications (APNs), additional UX polish, and character conversation surfacing in chat.
+
 ### Test Suite
 - 162 tests total (161 passing, 1 pre-existing flaky test in test_initiative.py)
 
 ---
-*(Last updated: 2026-02-27)*
+*(Last updated: 2026-02-28)*

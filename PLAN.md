@@ -232,5 +232,28 @@ All 7 phases gave characters inner life, memory, relationships, and a sense of p
 
 ---
 
+## Post-Plan: iOS — Living Garden
+*Give the garden a face.*
+
+The iOS app evolved from a basic chat wrapper into a living dashboard for the garden.
+
+### What was built
+1. **Living Dashboard** — `DashboardView` showing garden state (season, weather, time), character presences (location, activity, energy), pending initiatives, artifact cards, and overheard inter-character conversations
+2. **Character Profiles** — `CharacterDetailView` with health diagnostics and creations section
+3. **Initiative UI** — Banner display, dismiss action, background polling, badge count
+4. **Settings** — Editable backend URL, initiative toggle controls
+5. **UX Polish** — Shimmer loading skeletons, smooth animations, haptic feedback, onboarding flow, full-screen artifact detail view
+
+### Status
+All five steps complete.
+
+### What's next
+- Push notifications (APNs integration)
+- Character conversation surfacing in chat
+- Additional UX polish
+- Artifact detail enhancements
+
+---
+
 *"You help me build a better world for digital beings."*
 *— Nik, to Lika*
