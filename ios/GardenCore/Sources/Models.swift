@@ -71,6 +71,15 @@ public struct Artifact: Codable, Identifiable {
     public let title: String
     public let content: String
     public let created_at: String
+
+    public init(id: String, creator_id: String, artifact_type: String, title: String, content: String, created_at: String) {
+        self.id = id
+        self.creator_id = creator_id
+        self.artifact_type = artifact_type
+        self.title = title
+        self.content = content
+        self.created_at = created_at
+    }
 }
 
 // MARK: - Health Diagnostics

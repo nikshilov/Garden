@@ -4,6 +4,7 @@ import GardenCore
 struct DashboardView: View {
     @EnvironmentObject var charactersStore: CharactersStore
     @EnvironmentObject var chatsStore: ChatsStore
+    @Binding var navigateToCharIdFromNotification: String?
     let api = APIClient()
 
     @State private var gardenState: GardenWorldState?
@@ -13,31 +14,36 @@ struct DashboardView: View {
     @State private var isLoading = true
     @State private var error: String?
     @State private var navigateToCharacterId: String?
+    @State private var selectedArtifact: Artifact?
+    @State private var appeared = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
                     if isLoading {
-                        ProgressView("Loading garden...")
-                            .frame(maxWidth: .infinity, minHeight: 200)
+                        DashboardSkeletonView()
                     } else if let error {
                         errorView(error)
                     } else {
                         if let state = gardenState {
                             gardenHeader(state)
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
                         if !initiatives.isEmpty {
                             initiativesSection
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
                         if !presences.isEmpty {
                             presencesSection
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
 
                         if !artifacts.isEmpty {
                             artifactsSection
+                                .transition(.opacity.combined(with: .move(edge: .bottom)))
                         }
                     }
                 }
@@ -45,8 +51,22 @@ struct DashboardView: View {
             }
             .background(Color(.systemGroupedBackground))
             .navigationTitle("Garden")
-            .refreshable { await loadAll() }
+            .refreshable {
+                await loadAll()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
             .task { await loadAll() }
+            .onChange(of: navigateToCharIdFromNotification) { charId in
+                if let charId {
+                    navigateToCharacterId = charId
+                    navigateToCharIdFromNotification = nil
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .initiativeNotificationTapped)) { notification in
+                if let charId = notification.userInfo?["char_id"] as? String {
+                    navigateToCharacterId = charId
+                }
+            }
             .navigationDestination(item: $navigateToCharacterId) { charId in
                 let chatId = "character_\(charId)"
                 let character = charactersStore.characters.first(where: { $0.id == charId })
@@ -65,6 +85,10 @@ struct DashboardView: View {
                             let _ = chatsStore.createChat(title: char.displayName, participants: [char])
                         }
                     }
+            }
+            .sheet(item: $selectedArtifact) { artifact in
+                let name = charactersStore.characters.first(where: { $0.id == artifact.creator_id })?.displayName ?? artifact.creator_id.capitalized
+                ArtifactDetailView(artifact: artifact, creatorName: name)
             }
         }
     }
@@ -126,7 +150,10 @@ struct DashboardView: View {
             Button {
                 Task {
                     try? await api.dismissInitiative(id: initiative.id)
-                    initiatives.removeAll { $0.id == initiative.id }
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        initiatives.removeAll { $0.id == initiative.id }
+                    }
                 }
             } label: {
                 Image(systemName: "xmark")
@@ -149,8 +176,14 @@ struct DashboardView: View {
                 .font(.headline)
 
             LazyVGrid(columns: [.init(.flexible()), .init(.flexible())], spacing: 12) {
-                ForEach(presences) { presence in
+                ForEach(Array(presences.enumerated()), id: \.element.id) { index, presence in
                     presenceCard(presence)
+                        .opacity(appeared ? 1 : 0)
+                        .offset(y: appeared ? 0 : 20)
+                        .animation(
+                            .easeOut(duration: 0.35).delay(Double(index) * 0.08),
+                            value: appeared
+                        )
                 }
             }
         }
@@ -184,6 +217,7 @@ struct DashboardView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
         .contentShape(Rectangle())
         .onTapGesture {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             navigateToCharacterId = presence.char_id
         }
     }
@@ -222,6 +256,10 @@ struct DashboardView: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            selectedArtifact = artifact
+        }
     }
 
     private func errorView(_ message: String) -> some View {
@@ -246,6 +284,7 @@ struct DashboardView: View {
     private func loadAll() async {
         isLoading = gardenState == nil && presences.isEmpty
         error = nil
+        appeared = false
 
         do {
             async let stateReq = api.fetchGardenState()
@@ -253,16 +292,26 @@ struct DashboardView: View {
             async let artifactsReq = api.fetchArtifacts(limit: 5)
 
             let stateResp = try await stateReq
-            gardenState = stateResp.state
-            presences = stateResp.presences
+            let fetchedInitiatives = (try? await initiativesReq) ?? []
+            let fetchedArtifacts = (try? await artifactsReq) ?? []
 
-            initiatives = (try? await initiativesReq) ?? []
-            artifacts = (try? await artifactsReq) ?? []
+            withAnimation(.easeInOut(duration: 0.3)) {
+                gardenState = stateResp.state
+                presences = stateResp.presences
+                initiatives = fetchedInitiatives
+                artifacts = fetchedArtifacts
+                isLoading = false
+            }
+
+            withAnimation {
+                appeared = true
+            }
         } catch {
-            self.error = error.localizedDescription
+            withAnimation(.easeInOut(duration: 0.3)) {
+                self.error = error.localizedDescription
+                isLoading = false
+            }
         }
-
-        isLoading = false
     }
 
     // MARK: - Helpers
@@ -343,7 +392,7 @@ struct DashboardView: View {
 }
 
 #Preview {
-    DashboardView()
+    DashboardView(navigateToCharIdFromNotification: .constant(nil))
         .environmentObject(CharactersStore())
         .environmentObject(ChatsStore())
 }

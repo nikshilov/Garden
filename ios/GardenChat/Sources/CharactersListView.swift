@@ -47,6 +47,7 @@ struct CharactersListView: View {
                         Spacer()
 
                         Button {
+                            UISelectionFeedbackGenerator().selectionChanged()
                             selectedCharacter = character
                         } label: {
                             Image(systemName: "info.circle")
