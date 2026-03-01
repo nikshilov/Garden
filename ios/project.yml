@@ -29,3 +29,7 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: ai.garden.chat
     info:
       path: GardenChat/Info.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+          NSAllowsArbitraryLoads: true
