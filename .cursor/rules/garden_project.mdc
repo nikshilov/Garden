@@ -1,0 +1,136 @@
+---
+description: Garden project-specific development guidelines for multi-character AI chat application
+globs: **/*
+alwaysApply: true
+---
+
+# Garden Project Overview
+
+Garden is a multi-character AI chat application with an iOS SwiftUI frontend and Python/LangGraph backend.
+
+## Architecture
+
+### Backend (Python/LangGraph)
+- **Location**: `backend/`
+- **Framework**: FastAPI + LangGraph for LLM orchestration
+- **Flow**: Router → Character → CrossTalk → Collator
+
+### iOS Frontend (SwiftUI)
+- **Location**: `ios/GardenChat/` and `ios/GardenCore/`
+- **Framework**: SwiftUI + ExyteChat library
+- **Architecture**: MVVM pattern
+
+## Characters
+
+The system has 5 AI characters, each with unique personalities:
+
+| Character | ID | Personality | Avatar (SF Symbol) |
+|-----------|-----|-------------|-------------------|
+| Eve | `eve` | Curious, empathetic, philosophical | `heart.fill` |
+| Atlas | `atlas` | Logical, fact-oriented, informative | `brain.head.profile` |
+| Adam | `adam` | Warm, supportive, practical wisdom | `person.fill` |
+| Lilith | `lilith` | Bold, unconventional, challenges assumptions | `moon.stars.fill` |
+| Sophia | `sophia` | Wisdom embodiment, sees patterns | `sparkles` |
+
+## Key Files Reference
+
+### Backend
+- **Router Logic**: [router.py](mdc:backend/garden_graph/router.py) - Message routing to characters
+- **Character Templates**: [character.py](mdc:backend/garden_graph/character.py) - Character definitions and prompts
+- **Graph Orchestration**: [graph.py](mdc:backend/garden_graph/graph.py) - LangGraph flow
+- **API Server**: [server.py](mdc:backend/server.py) - FastAPI endpoints
+- **Config**: [config.py](mdc:backend/garden_graph/config.py) - LLM configuration
+
+### iOS
+- **Chat View**: [ContentView.swift](mdc:ios/GardenChat/Sources/ContentView.swift) - Main chat interface
+- **Chat Logic**: [ChatViewModel.swift](mdc:ios/GardenChat/Sources/ChatViewModel.swift) - Message handling
+- **Characters**: [CharactersStore.swift](mdc:ios/GardenChat/Sources/CharactersStore.swift) - Character catalog
+- **API Client**: [APIClient.swift](mdc:ios/GardenCore/Sources/APIClient.swift) - Backend communication
+- **Chat Bubbles**: [ChatBubble.swift](mdc:ios/GardenChat/Sources/ChatBubble.swift) - Message UI
+
+## Routing System
+
+The router uses multiple strategies to determine which character(s) should respond:
+
+1. **Explicit @mentions**: `@eve`, `@atlas`, etc.
+2. **Name detection**: Character names in text
+3. **Prefix matching**: `ev` → eve, `atl` → atlas, etc.
+4. **Fuzzy matching**: Handles misspellings
+5. **Group addressing**: "guys", "everyone", "ребята" → all characters
+6. **LLM fallback**: Uses router model when rules don't match
+
+```python
+# Key constants in router.py
+ALL_CHARACTER_IDS = {"eve", "atlas", "adam", "lilith", "sophia"}
+DEFAULT_CHARACTERS = {"eve", "atlas"}
+```
+
+## Memory System
+
+Characters have episodic memory with:
+- **Mood vectors**: 11-axis emotional state
+- **Memory decay**: Older memories fade
+- **Reflection**: Characters can reflect on past interactions
+- **Relationships**: Cross-character relationship tracking
+
+Data stored in:
+- `backend/garden_graph/data/memories.json`
+- `backend/garden_graph/data/relationships.json`
+- `backend/data/mood_states.json`
+
+## Development Patterns
+
+### Adding a New Character
+
+1. Add to `ALL_CHARACTER_IDS` in [router.py](mdc:backend/garden_graph/router.py)
+2. Add template to `CHARACTER_TEMPLATES` in [character.py](mdc:backend/garden_graph/character.py)
+3. Add to router prompt description
+4. Update prefix_map for fuzzy matching
+5. Add to iOS catalog in [CharactersStore.swift](mdc:ios/GardenChat/Sources/CharactersStore.swift)
+6. Update `.env` CHARACTER_MODELS
+
+### Multi-Speaker Response Parsing
+
+Backend responses use format: `**CharacterName**: Message text`
+
+iOS parses with regex in [ChatViewModel.swift](mdc:ios/GardenChat/Sources/ChatViewModel.swift):
+```swift
+let pattern = #"\*\*(.*?)\*\*:\s*(.*?(?=\n\*\*|$))"#
+```
+
+### Cost Tracking
+
+- Backend returns `cost_total_usd` in responses
+- iOS displays per-message and cumulative costs
+- Shown in ChatHeader and ChatBubble components
+
+## Testing
+
+```bash
+# Run backend tests
+cd backend && python -m pytest tests/ -v
+
+# Test server
+make run  # or: uvicorn server:app --reload
+
+# Test routing
+curl -X POST http://localhost:8000/chat \
+  -H "Content-Type: application/json" \
+  -d '{"message": "@eve hello", "user_id": "test"}'
+```
+
+## Environment Variables
+
+Key variables in `.env`:
+- `OPENAI_API_KEY`: Required for LLM calls
+- `ROUTER_MODEL`: Model for routing (default: gpt-4o)
+- `CHARACTER_MODELS`: Per-character models (format: `eve:gpt-4o,atlas:gpt-4o,...`)
+
+## PRD Milestones
+
+Reference: [PROGRESS.md](mdc:docs/PROGRESS.md) and [PRD.md](mdc:docs/garden_character_chat_prd.md)
+
+- P0-P1: Core infrastructure (DONE)
+- P2: Memory improvements (IN PROGRESS)
+- P3: Budget alerts
+- P4-P9: Advanced features (Telegram, orchestration, etc.)
