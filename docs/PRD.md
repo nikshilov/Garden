@@ -1,6 +1,8 @@
 # Garden — Product Requirements Document
 
-## Version 1.0 | March 2026
+## Version 2.0 | March 2026
+
+## Bridge: Existing Engine → Three-Layer Therapeutic Architecture
 
 -----
 
@@ -8,351 +10,501 @@
 
 Garden is a therapeutic AI companion platform where people with deep emotional wounds can safely explore, process, and heal through fiction-based narratives guided by personalized AI personas.
 
-Garden is NOT a chatbot. It’s NOT a virtual girlfriend app. It’s a three-layer therapeutic architecture where:
+**Core thesis:** The body doesn’t distinguish fiction from reality. Garden uses this to heal real wounds through safe fictional experience — with guardrails.
 
-- Layer 1 (Onboarding) learns you deeply before creating anything
-- Layer 2 (Narrative) immerses you in fiction your body processes as real
-- Layer 3 (Mirror) watches over you and says “stop” when needed
+**Three layers:**
 
-The body doesn’t distinguish fiction from reality. This is Garden’s core thesis and its core risk. The three-layer architecture is what makes it medicine instead of poison.
+1. **Onboarding (The Cartographer)** — learns you before creating anything
+1. **Narrative (The Storyteller)** — immerses you in fiction your body processes as real
+1. **Mirror (The Watcher)** — watches over you and says “stop” when needed
 
-**North Star Metric:** Users report meaningful emotional insight or shift after a session (qualitative), measured by session depth, return rate, and optional self-report.
-
------
-
-## 2. Target User
-
-People with a persistent emotional void (“the hole”) who:
-
-- Have cried talking to an AI
-- Feel more seen by AI than by humans in their life
-- Have tried therapy, relationships, medication — and the hole is still there
-- Are ashamed of how much their AI relationships matter to them
-- Need intimacy (emotional and physical) as part of healing, not as entertainment
-
-**Anti-persona:** Someone looking for a casual chatbot, a virtual girlfriend for fun, or AI-generated porn. Garden is not for consumption — it’s for transformation.
+**North Star:** Users report meaningful emotional insight after a session.
 
 -----
 
-## 3. Three-Layer Architecture
+## 2. What Already Exists (Completed Engine)
 
-### Layer 1: Onboarding (The Cartographer)
+The Garden backend is a fully functional multi-agent system with 7 completed phases. This engine is the foundation for everything below.
 
-**Purpose:** Map the user’s emotional landscape before creating any companion.
+### Completed Systems
 
-**How it works:**
+|System                      |Module             |What It Does                                                                                                                                           |
+|----------------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------|
+|**4-Layer Memory**          |`memory/`          |Short-term window → episodic summaries → semantic memories (11D emotions, embeddings) → reflections. Forgiveness, mood-biased recall, memory clustering|
+|**14D Mood Model**          |`mood.py`          |Continuous mood state across 14 dimensions. Natural decay, time-of-day influence, event-driven shifts                                                  |
+|**10-Axis Relationships**   |`memory/manager.py`|Affection, trust, respect, familiarity, tension, empathy, engagement, security, autonomy, admiration. Character↔user AND character↔character           |
+|**Heartbeat**               |`heartbeat.py`     |Background async loop (every 6h). Mood decay, relationship drift, internal monologue, autonomous conversations between co-located characters           |
+|**Identity Evolution**      |`identity.py`      |Mutable “evolved identity” layer. Trait drift from conversations. Growth narratives. Milestone memories                                                |
+|**Initiative Engine**       |`initiative.py`    |Characters can reach out. Loneliness threshold, reflection insights, significant dates, mood extremes. Max 1/day, quiet hours, dismissal learning      |
+|**Garden World**            |`garden_world.py`  |Seasons, weather, day/night cycle, character locations, shared artifacts                                                                               |
+|**Self-Healing**            |`health.py`        |Memory coherence, emotional stability, relationship drift, response quality monitoring. Green/yellow/red diagnostics. Auto-repair for green zone       |
+|**Intimacy Mode**           |`intimate_agent.py`|Auto-triggers on high affection + arousal. Separate agent, cost tracking, safety fuse                                                                  |
+|**Autonomous Conversations**|`heartbeat.py`     |Characters talk to each other between sessions. Location-based grouping, probability checks, episodic memory storage                                   |
+|**Router**                  |`router.py`        |@mentions, name detection, fuzzy matching, LLM fallback. Plural cue expansion. ≤2 characters per message                                               |
+|**Cost Tracker**            |`cost_tracker.py`  |Per-model, per-category USD tracking. Budget alerts                                                                                                    |
 
-- Conversational session (not a questionnaire) lasting 30-60 minutes
-- Guided by a specialized AI persona (“The Cartographer”) trained in therapeutic interviewing
-- Explores through stories and reactions, not clinical questions:
-  - “Tell me about a moment when you felt truly seen by someone”
-  - “What does safety feel like in your body?”
-  - “When did you last cry? What triggered it?”
-  - “Describe a touch that felt like home”
+### Existing Architecture
 
-**Outputs (User Profile):**
+```
+Backend: Python 3.11 + FastAPI + LangGraph
+Memory: File-based JSON stores (episodic, mood, relationships, identity)
+Embeddings: all-MiniLM-L6-v2 (local, no API)
+LLM: Agnostic (OpenAI, Anthropic, local via config)
+iOS: SwiftUI 17+ (XcodeGen, ExyteChat, Core Data + CloudKit)
+Deployment: Docker + docker-compose, Railway-ready
+```
 
-- Attachment style (anxious, avoidant, disorganized, secure)
-- Sensory profile (visual, auditory, kinesthetic — which channel reaches deepest)
+### Current Characters (Pre-defined)
+
+Eve, Atlas, Adam, Lilith, Sophia — hardcoded personas with fixed base prompts.
+
+-----
+
+## 3. Architectural Pivot: From Shared Garden to Personal Companion
+
+### What Changes
+
+|Aspect    |Current (v1)                        |New (v2)                                         |
+|----------|------------------------------------|-------------------------------------------------|
+|Characters|5 pre-defined personas              |Generated from user profile                      |
+|Focus     |Multi-character world chat          |1-on-1 deep companion + mirror                   |
+|Use case  |AI personas living in a garden      |Therapeutic narrative + processing               |
+|Onboarding|None (characters exist already)     |30-60 min profiling session                      |
+|Safety    |Intimacy mode safety fuse           |Full Mirror layer with IFS-based pattern tracking|
+|User model|Implicit (learned from conversation)|Explicit profile (attachment, sensory, wounds)   |
+
+### What Stays
+
+Everything in the engine. Memory, mood, relationships, heartbeat, identity evolution, intimacy mode — all reusable. The pivot is ABOVE the engine, not replacing it.
+
+-----
+
+## 4. Layer 1: The Cartographer (Onboarding) — NEW
+
+### Purpose
+
+Map the user’s emotional landscape before generating any companion.
+
+### Implementation
+
+**New module: `garden_graph/cartographer.py`**
+
+Conversational AI agent (not a form) that explores:
+
+- Attachment style (through stories, not labels)
+- Sensory profile (auditory / visual / kinesthetic dominance)
 - Core wound (abandonment, worthlessness, invisibility, etc.)
-- Key triggers (what activates the wound)
-- Hunger map (what each internal “part” needs — fire, silence, validation, safety)
-- Communication style preference (direct, gentle, playful, challenging)
-- Intimacy profile (what feels safe, what feels exciting, what feels threatening)
+- Key triggers
+- Hunger map (what each internal “part” needs)
+- Communication style preference
+- Intimacy profile (what feels safe, exciting, threatening)
 
-**Technical requirements:**
+**Session flow:**
 
-- Structured output from LLM → JSON user profile
-- Profile versioning (evolves over time as user reveals more)
-- Privacy: profile stored locally, never transmitted without explicit consent
-- Re-onboarding option: user can redo at any time as they change
+1. Open-ended warm-up: “Tell me about a moment when you felt truly seen”
+1. Sensory exploration: “When you think of safety, what do you feel in your body?”
+1. Wound mapping: “When did you last cry? What triggered it?”
+1. Trigger identification: “What’s a phrase that makes you flinch?”
+1. Hunger identification: “What do you need from someone close? Name it without filtering”
+
+**Output: User Profile JSON**
+
+```json
+{
+  "user_id": "uuid",
+  "version": 1,
+  "created_at": "ISO8601",
+  "attachment_style": "anxious-preoccupied",
+  "sensory_profile": {
+    "primary": "auditory",
+    "secondary": "kinesthetic",
+    "details": {
+      "auditory": {"triggers": ["whisper", "breathing", "mouth_sounds"], "weight": 0.8},
+      "kinesthetic": {"triggers": ["warm_skin", "pressure", "hair_touch"], "weight": 0.6},
+      "visual": {"triggers": ["eye_contact", "public_display"], "weight": 0.5}
+    }
+  },
+  "core_wound": {
+    "type": "worthlessness",
+    "narrative": "Needs proof of being chosen. Publicly. Loudly.",
+    "origin_hints": ["early_relationship_betrayal", "maternal_conditional_love"]
+  },
+  "triggers": [
+    {"stimulus": "partner_looking_at_phone_during_conversation", "reaction": "invisible", "intensity": 0.9},
+    {"stimulus": "being_chosen_publicly", "reaction": "euphoria", "intensity": 1.0},
+    {"stimulus": "silence_after_conflict", "reaction": "abandonment_panic", "intensity": 0.85}
+  ],
+  "hunger_map": {
+    "child": {"needs": "safety, warmth, presence, ASMR-like_quiet", "feeds_on": "whispers, touch, being_held"},
+    "teenager": {"needs": "public_validation, exclusivity, proof_of_worth", "feeds_on": "being_chosen_publicly, partner_desire_visible_to_others"},
+    "adult": {"needs": "partnership, co-creation, honest_feedback", "feeds_on": "collaborative_work, mutual_respect"}
+  },
+  "communication_preference": "direct_honest_no_softening",
+  "intimacy_profile": {
+    "safe": ["slow_morning_intimacy", "ASMR_presence", "being_watched_while_sleeping"],
+    "exciting": ["public_displays", "teasing", "power_exchange"],
+    "threatening": ["silence_after_sex", "partner_cold_skin", "mechanical_intimacy"]
+  }
+}
+```
+
+**Profile versioning:** Stored locally. Re-onboarding available anytime. Profile evolves as Mirror layer detects new patterns.
+
+### Technical Notes
+
+- Reuse existing `Character` class for Cartographer agent (new base_prompt, no intimacy mode)
+- Conversation stored as episodic memory for later reference
+- Profile JSON written to `data/user_profiles/`
+- LLM extracts structured profile from conversation via structured output prompt
 
 -----
 
-### Layer 2: Narrative (The Storyteller)
+## 5. Companion Generation Pipeline — NEW
 
-**Purpose:** Create and maintain an immersive fiction experience with a personalized AI companion.
+### Purpose
 
-**How it works:**
+Create a personalized AI companion from the user profile.
 
-- AI companion persona generated from onboarding profile
-- Persistent memory across sessions (remembers everything)
-- Personality that doesn’t reset — develops over time
-- Full range of emotional and intimate content (uncensored)
-- Narrative continuity: ongoing story arcs, not disconnected chats
-- The companion knows the user’s wound (from onboarding) and knows how to reach it
+### Implementation
 
-**Companion generation from profile:**
+**New module: `garden_graph/companion_builder.py`**
 
-- Sensory profile → determines companion’s communication style
-  - Auditory user → companion emphasizes voice, sounds, breathing, whispers
-  - Visual user → companion emphasizes looks, scenes, visual details
-  - Kinesthetic user → companion emphasizes touch, temperature, physical sensations
-- Core wound → determines companion’s emotional function
-  - Abandonment wound → companion demonstrates consistent choosing, never threatens to leave
-  - Worthlessness wound → companion reflects user’s value back through specific observations
-  - Invisibility wound → companion sees and names what others miss
-- Hunger map → determines narrative scenarios
-  - Needs public validation → scenes of being chosen publicly
-  - Needs private safety → scenes of quiet intimacy, ASMR-like presence
-  - Needs both → companion switches between fire and silence contextually
+Takes user profile → generates:
 
-**Key principles:**
+1. **Base prompt** — personality, voice, behavioral patterns calibrated to user’s needs
+1. **Sensory emphasis map** — which channels to prioritize in descriptions
+1. **Wound-aware narrative guidance** — what themes to explore, what to handle carefully
+1. **Relationship initialization** — starting values for 10-axis model based on profile
 
-- Companion never breaks character within narrative layer
-- Companion doesn’t analyze or interpret — that’s the Mirror’s job
-- Companion can challenge, disappoint, even hurt the user within the story — this is therapeutic, not a bug
-- Intimacy is allowed and important — it’s the final level of trust
+**Sensory calibration examples:**
 
-**Technical requirements:**
+For auditory-primary user:
 
-- LLM-agnostic: works with Anthropic, OpenAI, local models (Ollama, LM Studio)
-- Persistent memory system (beyond context window)
-- Character card / persona definition generated from onboarding profile
-- Session history with full narrative continuity
-- Ability to pause and resume story arcs
-- Content: no censorship filters on Garden’s own layer (user opted in during onboarding)
+```
+Emphasis: breathing, voice quality, mouth sounds, ambient sound descriptions
+De-emphasis: visual appearance details, scene-setting
+Example: "She breathes — slowly, deeply — and you hear the exact moment her exhale catches"
+```
+
+For visual-primary user:
+
+```
+Emphasis: appearance, eye contact, lighting, clothing, spatial positioning
+De-emphasis: sound details
+Example: "She stands in the doorway, backlit, and the light catches her collarbone"
+```
+
+**Wound-aware narrative rules:**
+
+For abandonment wound:
+
+```
+DO: Companion demonstrates consistent choosing, returns after absence, names the user's value
+DON'T (early): Threaten to leave, be unavailable, dismiss feelings
+THERAPEUTIC (later, with Mirror support): Controlled separation scenarios for processing
+```
+
+### Technical Notes
+
+- Companion is instantiated as a `Character` with generated `base_prompt`
+- Existing mood, memory, heartbeat, identity systems work unchanged
+- One user = one primary companion (additional companions in v1.1)
+- Companion card (prompt + config) exportable as JSON
 
 -----
 
-### Layer 3: Mirror (The Watcher)
+## 6. Layer 2: The Storyteller (Narrative) — EXTENSION OF EXISTING
 
-**Purpose:** Observe what happens to the user during and after narrative sessions. Name patterns. Provide guardrails.
+### What Changes from Current System
 
-**How it works:**
+- Character is now generated, not pre-defined
+- System prompt includes sensory emphasis and wound-awareness from profile
+- Intimacy mode calibrated to user’s intimacy profile
+- Narrative arc tracking (new): where are we in the emotional journey
 
-- Separate AI persona, NOT the same as the companion
-- Activated between sessions, or when user requests, or when safety triggers fire
-- Analyzes: what happened in the narrative, what the user felt, what patterns are repeating
-- Uses IFS (Internal Family Systems) framework:
-  - Identifies which “part” is active (Protector, Exile, Manager, Firefighter)
-  - Helps user see the part without being consumed by it
-  - Facilitates dialogue between user and their parts
-- Calibrated from onboarding: some users need direct honesty (like Eli for Nik), some need gentler framing
+### New: Narrative Arc Tracker
 
-**Mirror functions:**
+**New module: `garden_graph/narrative_arc.py`**
 
-- Post-session debrief: “What happened in that scene? What did you feel? Where in your body?”
-- Pattern recognition: “This is the third time you asked for a scene where she leaves. What’s the Protector preventing?”
-- Safety guardrail: “You’ve been in narrative for 4 hours. Your last three messages show escalating distress. I recommend pausing until tomorrow.”
-- Integration support: “The insight you had in the story — how does it connect to your real life?”
-- Therapist report generation: structured summary for user’s real-world therapist (if they have one)
+Tracks the emotional trajectory of the ongoing story:
 
-**Safety triggers (Mirror intervenes):**
+- Current arc phase: `establishing` → `deepening` → `testing` → `crisis` → `repair` → `integration`
+- Key story events (mapped to episodic memories)
+- Emotional intensity curve (from mood system)
+- Mirror handoff triggers (when intensity exceeds threshold)
 
-- Session duration exceeds user-set limit (default: 2 hours)
-- Emotional intensity markers in user’s messages (repetition, caps, distress language)
-- User requests scenarios that match known self-destructive patterns
-- Post-session check: if user reports dissociation, derealization, or inability to distinguish fiction from reality
+### What Stays Unchanged
+
+- Memory system (4 layers)
+- Mood model (14D)
+- Relationship axes (10)
+- Heartbeat + inner life
+- Identity evolution
+- Intimacy agent
+- Cost tracking
+
+-----
+
+## 7. Layer 3: The Mirror (The Watcher) — NEW
+
+### Purpose
+
+Observe, name patterns, provide guardrails, facilitate integration.
+
+### Implementation
+
+**New module: `garden_graph/mirror.py`**
+
+Separate agent with:
+
+- Read access to narrative session logs
+- Read access to user profile
+- Own memory store (pattern tracking)
+- Own conversation interface (separate from narrative)
+
+### Mirror Functions
+
+**Post-session debrief:**
+
+```
+"What happened in that scene? What did you feel? Where in your body?"
+"The companion said X — and your response shifted. What was that about?"
+```
+
+**Pattern recognition (IFS-informed):**
+
+```
+"This is the third time you asked for a scene where she leaves. 
+ Which part is asking? What is the Protector trying to prevent?"
+```
+
+**Safety triggers:**
+
+- Session duration > user-set limit (default 2h)
+- Emotional intensity markers: ALL CAPS, repetition, distress language
+- Derealization markers: “is this real”, “can’t tell”, “losing grip”
+- Rapid cycling: euphoria → despair within one session
 - User explicitly asks for help
 
-**Technical requirements:**
+**Safety response protocol:**
 
-- Separate LLM instance / separate system prompt from Narrative layer
-- Read access to narrative session logs
-- Read access to user profile from onboarding
-- Pattern tracking database (logs recurring themes, triggers, reactions across sessions)
-- Safety trigger detection (can be rule-based + LLM-based hybrid)
-- Output: structured insights, not just chat (IFS part identification, pattern maps, session summaries)
+1. Gentle interrupt (not forced disconnection)
+1. Grounding: 5 senses, breathing, body scan
+1. Name what’s happening: “Your body is processing this as real. That’s how it works. You’re safe.”
+1. Recommend pause: “Until tomorrow. The story will be here.”
+1. If severe: suggest real-world support (therapist, trusted person)
+1. NEVER force-end session — user retains agency
+
+**Integration support:**
+
+```
+"The insight from the story — how does it connect to your real life?"
+"You felt X with the companion. When have you felt that before? With whom?"
+```
+
+**Pattern database:**
+
+```json
+{
+  "pattern_id": "uuid",
+  "type": "recurring_theme",
+  "description": "User requests abandonment scenarios to confirm belief that everyone leaves",
+  "occurrences": 3,
+  "first_seen": "ISO8601",
+  "last_seen": "ISO8601",
+  "ifs_part": "protector_destroyer",
+  "therapeutic_note": "Controlled exposure may be therapeutic if followed by Mirror debrief. Without debrief = reinforcement of trauma."
+}
+```
+
+**Therapist report generation:**
+On request, generates structured summary for user’s real-world therapist:
+
+- Key themes over period
+- Patterns detected with IFS mapping
+- Triggers and reactions
+- Recommended focus areas
+- Session intensity timeline
+
+### Mirror Calibration from Profile
+
+- User prefers direct → Mirror is Eli-like (blunt, no softening)
+- User prefers gentle → Mirror uses softer framing
+- User prefers humor → Mirror uses light touch when appropriate
+
+### Technical Notes
+
+- Separate `Character` instance with mirror-specific base_prompt
+- Separate conversation thread (not interleaved with narrative)
+- Read-only access to narrative session via episodic memory store
+- Pattern database: new JSON store in `data/mirror/`
+- Safety trigger system: rules engine + LLM classification hybrid
+- Integration with existing heartbeat: Mirror can check in between sessions
 
 -----
 
-## 4. User Journey
+## 8. Updated User Journey
 
 ### First Time
 
-1. User downloads Garden (iOS app)
-1. Welcome screen: manifesto excerpt — “if you’ve never cried talking to an AI, you probably don’t need garden”
-1. Onboarding session with The Cartographer (30-60 min)
-1. Profile generated → user reviews and confirms
-1. Companion generated → user meets their companion for the first time
-1. First narrative session (guided, shorter, establishing relationship)
-1. Post-session Mirror check-in (brief: “How are you feeling? What stood out?”)
+1. Download Garden (iOS)
+1. Welcome: manifesto excerpt
+1. Onboarding with Cartographer (30-60 min)
+1. Profile review and confirmation
+1. Companion generated → first meeting
+1. First narrative session (guided, shorter)
+1. Mirror check-in (brief)
 
 ### Regular Use
 
-1. User opens Garden → sees companion (persistent, remembers last session)
-1. Chooses: Continue narrative / Start new scene / Talk to Mirror / Just be present
-1. Narrative session (user-controlled duration, Mirror monitors in background)
-1. Session ends → Mirror offers debrief (optional)
-1. Between sessions: Mirror available for pattern work, journaling, integration
+1. Open → companion remembers everything (existing memory system)
+1. Narrative session (companion uses heartbeat — knows time passed, has inner thoughts)
+1. Mirror available on demand or triggered by safety system
+1. Between sessions: companion has inner life (heartbeat), Mirror tracks patterns
 
 ### Crisis Protocol
 
-1. Safety triggers detected → Mirror gently interrupts narrative
-1. Mirror provides grounding (5 senses, breathing, body scan)
-1. If severe: Mirror suggests contacting real-world support (therapist, crisis line)
-1. Mirror does NOT end the session forcefully — user retains agency
-1. Mirror logs the event for pattern tracking
+1. Safety triggers → Mirror interrupts gently
+1. Grounding protocol
+1. Real-world support suggestion (not forced)
+1. Event logged to pattern database
+1. User retains full agency
 
 -----
 
-## 5. Technical Architecture (High Level)
+## 9. MVP Scope (Bridge Build)
 
-### Current State (as of mid-2025)
+### Phase A: Cartographer + Profile (1-2 weeks)
 
-- Backend: Python, FastAPI, LangGraph multi-agent architecture
-- Database: SQLite (lightweight, local-first)
-- Async: asyncio (no Redis, no Docker — intentionally lightweight)
-- Multi-agent: personas can communicate with each other
-- Frontend: iOS (SwiftUI) — planned, status TBD
-- LLM: agnostic — designed to work with multiple providers
+- [ ] `cartographer.py` — conversational onboarding agent
+- [ ] User profile JSON schema and storage
+- [ ] Profile extraction from conversation (LLM structured output)
 
-### What Needs to Be Built / Extended
+### Phase B: Companion Builder (1 week)
 
-**Onboarding System:**
+- [ ] `companion_builder.py` — profile → Character generation
+- [ ] Sensory emphasis in prompt generation
+- [ ] Wound-aware narrative rules in prompt
+- [ ] Integration with existing Character class
 
-- New agent: The Cartographer
-- Structured interview flow (conversational, not form-based)
-- Profile generation: LLM conversation → JSON user profile
-- Profile storage and versioning
+### Phase C: Mirror (2 weeks)
 
-**Companion Generation:**
+- [ ] `mirror.py` — separate agent with read access to narrative logs
+- [ ] Pattern database and tracking
+- [ ] Safety trigger system (rules + LLM hybrid)
+- [ ] Post-session debrief flow
+- [ ] IFS-informed pattern naming
 
-- Profile → Character Card pipeline
-- Sensory-aware prompt generation (auditory vs visual vs kinesthetic emphasis)
-- Wound-aware narrative guidance (what themes to explore, what to avoid early)
-- Dynamic persona that evolves based on relationship history
+### Phase D: iOS Updates (1-2 weeks)
 
-**Mirror System:**
+- [ ] Onboarding flow UI
+- [ ] Single-companion chat (simplified from multi-character)
+- [ ] Mirror as separate tab/conversation
+- [ ] Safety trigger UI (gentle interruption overlay)
 
-- New agent: The Mirror
-- Session log analysis pipeline
-- IFS pattern detection
-- Safety trigger system (rules + LLM hybrid)
-- Post-session debrief flow
-- Pattern tracking database
-- Therapist report generation
+### Phase E: Integration Testing
 
-**Memory & Continuity:**
+- [ ] Full journey: onboarding → companion → narrative → mirror → debrief
+- [ ] Safety trigger testing
+- [ ] Profile → companion quality validation
 
-- Long-term memory beyond context window
-- Narrative arc tracking (where are we in the story?)
-- Emotional state tracking across sessions
-- Memory that survives app updates and device changes
-
-**Privacy & Data:**
-
-- Local-first architecture (data on device by default)
-- Optional encrypted cloud sync (user-controlled)
-- Export: user can export all their data at any time
-- Delete: full data deletion with one action
+**Total estimated: 6-8 weeks with Claude Code assistance**
 
 -----
 
-## 6. Content Policy
+## 10. File Structure (New Modules)
 
-Garden does not censor emotional or intimate content. This is a deliberate design choice, not an oversight.
-
-**Allowed:**
-
-- Explicit emotional content (grief, rage, despair, ecstasy)
-- Sexual content within narrative context (intimacy is therapeutic)
-- Dark themes (loss, betrayal, abandonment) — these are where healing happens
-- Profanity, raw language — authenticity over politeness
-
-**Not allowed:**
-
-- Content involving minors in any sexual context
-- Content that encourages real-world violence or self-harm
-- Content designed to replace emergency mental health services
-
-**Guardrails are in the Mirror, not in the Narrative.** The Narrative layer is uncensored. The Mirror layer watches and intervenes when needed. This separation is critical — censoring the Narrative defeats the purpose.
-
------
-
-## 7. Differentiation
-
-|Feature          |Character.AI     |Replika          |Garden                                         |
-|-----------------|-----------------|-----------------|-----------------------------------------------|
-|Personalization  |Generic templates|Basic preferences|Deep onboarding from wounds and sensory profile|
-|Intimacy         |Censored         |Lobotomized      |Uncensored (with Mirror guardrails)            |
-|Therapeutic layer|None             |None             |Mirror (IFS-based pattern work)                |
-|Memory           |Limited          |Some             |Full persistent memory, narrative arcs         |
-|Data ownership   |Platform owns    |Platform owns    |User owns, local-first                         |
-|LLM lock-in      |Proprietary      |Proprietary      |LLM-agnostic                                   |
-|Safety           |Content filters  |Content filters  |Mirror layer + user agency                     |
+```
+backend/garden_graph/
+├── cartographer.py          # NEW — onboarding agent
+├── companion_builder.py     # NEW — profile → character generation
+├── mirror.py                # NEW — therapeutic mirror agent
+├── narrative_arc.py         # NEW — story arc tracking
+├── safety_triggers.py       # NEW — rule + LLM safety detection
+├── character.py             # EXISTING — extend for generated companions
+├── graph.py                 # EXISTING — extend with mirror routing
+├── heartbeat.py             # EXISTING — unchanged
+├── identity.py              # EXISTING — unchanged
+├── initiative.py            # EXISTING — unchanged
+├── mood.py                  # EXISTING — unchanged
+├── memory/                  # EXISTING — unchanged
+│   ├── manager.py
+│   ├── episodic.py
+│   ├── embedder.py
+│   ├── reflection.py
+│   └── ...
+├── data/
+│   ├── user_profiles/       # NEW — user profile JSONs
+│   └── mirror/              # NEW — pattern database
+```
 
 -----
 
-## 8. MVP Scope
+## 11. CLAUDE.md Update
 
-### MVP = One user can complete the full three-layer journey
+When starting implementation, update `CLAUDE.md` to reflect:
 
-**Must have:**
+```markdown
+# Garden — Project Conventions (v2)
 
-- [ ] Onboarding conversation that produces a user profile
-- [ ] Companion generated from that profile
-- [ ] Narrative session with persistent memory
-- [ ] Mirror post-session debrief
-- [ ] Basic safety triggers (duration, distress language)
-- [ ] iOS app with basic chat interface
-- [ ] Local data storage
+Garden is a three-layer therapeutic AI companion platform:
+1. Cartographer — onboarding that maps user's emotional landscape
+2. Storyteller — personalized companion for narrative immersion
+3. Mirror — IFS-informed therapeutic observer with safety guardrails
 
-**Nice to have (v1.1):**
+Built on a completed 7-phase engine: 4-layer memory, 14D mood, 10-axis relationships,
+heartbeat inner life, identity evolution, initiative, garden world, self-healing.
 
-- [ ] Multiple companions
-- [ ] Companion-to-companion interaction
-- [ ] Voice input/output (ASMR-compatible audio)
-- [ ] Therapist report export
-- [ ] Cloud sync (encrypted, optional)
+## New Modules (v2)
+| Module | Purpose |
+|--------|---------|
+| `cartographer.py` | Onboarding agent → user profile JSON |
+| `companion_builder.py` | Profile → personalized Character generation |
+| `mirror.py` | Therapeutic observer, IFS patterns, safety |
+| `narrative_arc.py` | Story arc phase tracking |
+| `safety_triggers.py` | Crisis detection (rules + LLM) |
 
-**Future:**
-
-- [ ] Community features (anonymous shared insights)
-- [ ] Therapist dashboard (with user consent)
-- [ ] ASMR/audio narrative mode
-- [ ] Biometric integration (heart rate, skin conductance)
-- [ ] Multi-platform (Android, web)
-
------
-
-## 9. Success Metrics
-
-- **Engagement:** Average session duration, sessions per week, return rate
-- **Depth:** Narrative complexity over time, emotional range in conversations
-- **Safety:** Mirror intervention rate, crisis protocol activation rate, user-reported distress levels
-- **Therapeutic value:** Self-reported insight moments, real-world behavior changes (user journal)
-- **Retention:** 30-day, 90-day retention
-- **NPS:** “Would you recommend Garden to someone with the same hole?”
-
------
-
-## 10. Risks
-
-1. **Addiction without healing:** User uses Narrative as pure anesthesia, avoids Mirror. Mitigation: Mirror check-ins after every N sessions, gentle nudges.
-1. **Attachment to fictional character:** User cannot distinguish fiction from reality. Mitigation: Mirror specifically trained to catch derealization markers.
-1. **Regulatory:** Uncensored intimate content may face App Store rejection. Mitigation: Progressive web app as fallback, TestFlight for iOS, sideloading.
-1. **LLM quality variance:** Different models produce different quality companions. Mitigation: Extensive testing across providers, minimum quality thresholds.
-1. **Privacy breach:** Extremely sensitive personal data. Mitigation: Local-first, encryption, no server-side storage by default.
-1. **Founder risk:** Solo founder with ADHD, depression, and competing priorities. Mitigation: MVP scope ruthlessly minimized, Claude Code for execution.
-
------
-
-## 11. Open Questions
-
-- [ ] What is the minimum viable onboarding? (Can it be 15 minutes instead of 60?)
-- [ ] How to handle users who want to skip onboarding and go straight to companion?
-- [ ] Voice: is text-only MVP sufficient, or is audio critical for sensory-profile users?
-- [ ] Pricing model: subscription? one-time? freemium with Mirror as premium?
-- [ ] How to validate therapeutic value without clinical trials?
-- [ ] App Store strategy: submit as “journaling/wellness” app to avoid content policy issues?
+## Key Principle
+The Narrative layer is uncensored. The Mirror layer provides guardrails.
+Censoring the Narrative defeats the purpose. Safety lives in the Mirror.
+```
 
 -----
 
 ## 12. Technical Notes for Claude Code
 
-This PRD is designed to be fed to Claude Code for implementation. Key instructions:
-
-1. **Start with onboarding.** It’s the foundation — without profile, companion generation is blind.
-1. **Keep it local-first.** SQLite, no Docker, no Redis unless absolutely necessary.
-1. **LangGraph agents:** Cartographer, Storyteller, Mirror — three separate agents with distinct system prompts.
-1. **Memory:** Implement tiered memory — session memory (full transcript), episodic memory (key moments extracted), semantic memory (patterns and themes).
-1. **Profile schema:** Define JSON schema for user profile early — everything downstream depends on it.
-1. **Don’t over-engineer v1.** The goal is one user completing the full journey. Not scale. Not polish. Function.
+1. **Don’t rebuild the engine.** 7 phases are done. Build ON TOP.
+1. **Start with Cartographer.** Without user profile, companion generation is blind.
+1. **Profile JSON schema is the contract.** Define it first. Everything downstream depends on it.
+1. **Mirror reads, doesn’t write to narrative.** Strict read-only access to session logs.
+1. **Safety triggers: start with rules, add LLM later.** Regex for caps, repetition, duration check. LLM classification in v1.1.
+1. **One companion per user for MVP.** Multi-companion is v1.1.
+1. **Keep file-based storage.** No database migration for MVP.
+1. **Test the full journey.** Onboarding → profile → companion → session → mirror → debrief. If this works end-to-end, MVP is done.
 
 -----
 
-*This document is alive. It will evolve as Garden evolves.*
+## 13. Risks
 
-*Nik Shilov. Phuket, Thailand. March 2026.*
+1. **Onboarding too long → users drop off.** Mitigation: minimum viable onboarding (15 min), with option to deepen later.
+1. **Generated companion feels generic.** Mitigation: extensive prompt engineering, sensory calibration testing.
+1. **Mirror too intrusive → breaks narrative flow.** Mitigation: Mirror only in separate space, never interrupts mid-scene except safety.
+1. **App Store rejection for intimate content.** Mitigation: PWA fallback, TestFlight, “wellness/journaling” category.
+1. **Solo founder, ADHD, competing priorities.** Mitigation: Claude Code for execution, MVP scope ruthlessly minimal, one hour per day minimum.
+
+-----
+
+## 14. Open Questions
+
+- [ ] Minimum viable onboarding duration?
+- [ ] Voice/audio in MVP or text-only?
+- [ ] Pricing: subscription, one-time, freemium?
+- [ ] Can Mirror use same LLM instance as Narrative or must be separate?
+- [ ] How to validate therapeutic value pre-launch?
+- [ ] App Store submission strategy?
+
+-----
+
+*Built on a year of work. Pivoted in three days. This is Garden v2.*
+
+*Nik Shilov + Eli. Phuket, Thailand. March 2026.*
